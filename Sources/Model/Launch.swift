@@ -2,7 +2,9 @@ import SwiftUI
 
 extension Model {
     func extraArgs(_ exe: String) -> [String] {
-        (exe as NSString).lastPathComponent.lowercased() == "steam.exe" ? ["-no-cef-sandbox", "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-cef-disable-d3d11"] : []
+        guard (exe as NSString).lastPathComponent.lowercased() == "steam.exe" else { return [] }
+        // Wine 11 engines draw Steam's window only with its web views on the GPU (GPUAccelWebViewsV3, set in prepare): no GPU-off flags there.
+        return engineIsWine11() ? ["-no-cef-sandbox"] : ["-no-cef-sandbox", "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-cef-disable-d3d11"]
     }
 
     func winPath(_ exe: String) -> String {
@@ -89,6 +91,12 @@ extension Model {
         need.restartSteam = ensureControllerMode(for: exe)   // DualSense native ⇄ XInput: bus-wide, so Steam must restart when it changes
         log += need.note
         if let red = Model.redGame((exe as NSString).deletingLastPathComponent) { linkWitcherRewrite(red.exe, appName(exe)) }
+        // Steam on a Wine 11 engine (measured 24 Oct, tests/oracle/launcher.sh): with its web views off the GPU its window stays black or never
+        // appears; this value (before Steam starts), no GPU-off flags and DXMT's cross-process swapchain (LaunchCheck) draw it in 85 s.
+        if engineIsWine11(), steamGames[exe] != nil || (exe as NSString).lastPathComponent.lowercased() == "steam.exe",
+           Model.regGet(selected, "HKCU\\Software\\Valve\\Steam", "GPUAccelWebViewsV3") != "0x1" {
+            Model.regSet(selected, "HKCU\\Software\\Valve\\Steam", "GPUAccelWebViewsV3", "1", type: "REG_DWORD", exe: "steam.exe", owner: "bottle")
+        }
         // Community DLL overrides go into the bottle registry (idempotent, same place protonfixes puts them).
         // Every value goes through the registry ledger, so it can be removed again when the setting that wanted it is gone.
         let e = (exe as NSString).lastPathComponent, b = selected

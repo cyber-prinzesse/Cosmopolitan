@@ -126,6 +126,9 @@ extension Model {
         // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
         let o = options(exe)
         if let cdpr { n.args += ["--launcher-skip"] + (cdpr.flag.isEmpty ? [] : [cdpr.flag]); parts.append("starts \((cdpr.exe as NSString).lastPathComponent) without REDlauncher") }
+        // Steam on a Wine 11 engine: its web helper's GPU process draws into steam.exe's window, which DXMT allows only when asked (with
+        // GPU web views on and no GPU-off flags: Steam's sign-in window after 85 s; without it none in 600 s). Steam games inherit it.
+        if engineIsWine11(), name.lowercased() == "steam.exe" { n.env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1" }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
         for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE"].contains(k) { n.env[k] = v }

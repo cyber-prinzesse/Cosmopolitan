@@ -18,6 +18,9 @@ run native            ./native/run.sh ${1:-60}
 for t in tripwire_rules first_open_text outlive_app malware_scan launch_wait snapshots gog_signin steam_restart repair_scope tripwire_setup repair_lock dotnet_new_bottle driver_copies registry_ledger pins d3dmetal_versions battery_cap runtimes driver_fallback preflight anticheat save_backups templates pad_connect crash_capture health cleanup_suggestions launchers nightly_test log_start red_launcher community_fixes prefix_update; do
   run $t ./safety/$t.sh
 done
+# Steam's window on a Wine 11 engine, when the trial engine is on this Mac (its fix is in the launch code, not the engine). 300 s cap.
+W11="$HOME/Cosmopolitan-engine-trials/highball-11.0-r29"
+[[ -d "$W11" ]] && run steam_wine11 env COSMO_ENGINE=highball-11.0-r29 COSMO_ENGINE_DIR="$W11" ./ui/steam_window.sh 300
 run stress            ./stress/run.sh
 print; print "Summary (full logs in $L):"; print -l $rows
 print "$fails of ${#rows} failed"
