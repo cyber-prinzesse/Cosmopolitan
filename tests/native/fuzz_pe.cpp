@@ -12,8 +12,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
     if (fd < 0) return 0;
     if (n && write(fd, d, n) != ssize_t(n)) { close(fd); return 0; }
     close(fd);
-    char imps[2048];
-    (void)cosmo_pe_read(path, imps, sizeof imps);
+    char imps[2048], dely[2048];
+    (void)cosmo_pe_read(path, imps, sizeof imps, dely, sizeof dely);
     (void)cosmo_avx_scan(path);
     return 0;
 }

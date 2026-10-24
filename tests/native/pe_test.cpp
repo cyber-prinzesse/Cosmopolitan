@@ -22,27 +22,35 @@ static uint32_t le32(const std::vector<uint8_t> &d, size_t o) { return uint32_t(
 static void put32(std::vector<uint8_t> &d, size_t o, uint32_t v) { for (int i = 0; i < 4; i++) d[o + i] = uint8_t(v >> (8 * i)); }
 
 int main(int argc, char **argv) {
-    if (argc < 4) { fprintf(stderr, "usage: pe_test fx64.exe fx32.exe tmpdir\n"); return 2; }
+    if (argc < 5) { fprintf(stderr, "usage: pe_test fx64.exe fx32.exe tmpdir fxdelay.exe\n"); return 2; }
     const std::string tmp = argv[3], t = tmp + "/t.exe";
-    char imps[4096];
+    char imps[4096], dely[4096];
 
     // 1. Real executables
-    cosmo_pe_info r = cosmo_pe_read(argv[1], imps, sizeof imps);
+    cosmo_pe_info r = cosmo_pe_read(argv[1], imps, sizeof imps, dely, sizeof dely);
     CHECK(r.error == 0 && r.kind == 3 && r.machine == 0x8664, "x64 fixture: error %d kind %d machine %x", r.error, r.kind, r.machine);
     CHECK(strstr(imps, "d3d9.dll") && strstr(imps, "user32.dll") && strstr(imps, "kernel32.dll"), "x64 imports: %s", imps);
-    r = cosmo_pe_read(argv[2], imps, sizeof imps);
+    r = cosmo_pe_read(argv[2], imps, sizeof imps, dely, sizeof dely);
     CHECK(r.error == 0 && r.kind == 3 && r.machine == 0x14c && strstr(imps, "d3d9.dll"), "x86 fixture: error %d machine %x imports %s", r.error, r.machine, imps);
     cosmo_avx_result a = cosmo_avx_scan(argv[1]);
     CHECK(a.error == 0 && a.instructions > 0, "avx scan of x64 fixture: error %d instructions %llu", a.error, (unsigned long long)a.instructions);
     CHECK(cosmo_avx_scan(argv[2]).error == 3, "avx scan of x86 fixture should say not x86-64");
-    r = cosmo_pe_read("/nonexistent/x.exe", imps, sizeof imps);
+    r = cosmo_pe_read("/nonexistent/x.exe", imps, sizeof imps, dely, sizeof dely);
     CHECK(r.error == 1, "missing file: error %d", r.error);
+
+    // Delay-load split (Epic "Won't run" false positive fix): a delay-loaded DLL lands in the delay list, never in the normal import list,
+    // so the launch check can treat it as optional. The fixture delay-loads d3d9.dll and imports user32.dll normally as the control.
+    r = cosmo_pe_read(argv[4], imps, sizeof imps, dely, sizeof dely);
+    CHECK(r.error == 0 && r.delay_imports >= 1, "delay fixture: error %d delay_imports %u", r.error, r.delay_imports);
+    CHECK(strstr(dely, "d3d9.dll"), "delay fixture: d3d9.dll should be in the delay list, got '%s'", dely);
+    CHECK(!strstr(imps, "d3d9.dll"), "delay fixture: d3d9.dll must NOT be in the normal list (would be a false 'missing DLL'), got '%s'", imps);
+    CHECK(strstr(imps, "user32.dll") && strstr(imps, "kernel32.dll"), "delay fixture: normal imports stay in the normal list, got '%s'", imps);
 
     // 2. The Phase 0 regression: 69 bytes, MZ + e_lfanew 0x40 + "PE\0\0" + 1 byte (read past the end before the fix)
     uint8_t p0[0x45] = {}; p0[0] = 'M'; p0[1] = 'Z'; p0[0x3C] = 0x40; memcpy(p0 + 0x40, "PE\0\0", 4);
-    spit(t, p0, sizeof p0); r = cosmo_pe_read(t.c_str(), imps, sizeof imps);
+    spit(t, p0, sizeof p0); r = cosmo_pe_read(t.c_str(), imps, sizeof imps, dely, sizeof dely);
     CHECK(r.error == 2, "69-byte truncated PE: error %d (want 2)", r.error);
-    { const auto d = slurp(argv[1]); spit(t, d.data(), 2000); r = cosmo_pe_read(t.c_str(), imps, sizeof imps);   // headers intact, sections cut off
+    { const auto d = slurp(argv[1]); spit(t, d.data(), 2000); r = cosmo_pe_read(t.c_str(), imps, sizeof imps, dely, sizeof dely);   // headers intact, sections cut off
       CHECK(d.size() < 8192 || r.error == 2, "cut to 2000 of %zu bytes (inside its sections): error %d (want 2)", d.size(), r.error); }
 
     // 3. Every truncation: byte by byte through the first 4 KB, then every 4 KB
@@ -51,7 +59,7 @@ int main(int argc, char **argv) {
         const auto d = slurp(fx);
         for (size_t len = 0; len <= d.size(); len += (len < 4096 ? 1 : 4096), runs++) {
             spit(t, d.data(), len);
-            r = cosmo_pe_read(t.c_str(), imps, sizeof imps);
+            r = cosmo_pe_read(t.c_str(), imps, sizeof imps, dely, sizeof dely);
             CHECK(r.error != 3, "truncated to %zu: internal error", len);
             CHECK(r.error == 0 || r.error == 2, "truncated to %zu: unexpected error %d", len, r.error);
             CHECK(strlen(imps) < sizeof imps, "truncated to %zu: imports not terminated", len);
@@ -64,7 +72,7 @@ int main(int argc, char **argv) {
     const uint32_t h = le32(base, 0x3C);
     auto variant = [&](const char *what, auto patch) {
         auto d = base; patch(d); spit(t, d.data(), d.size());
-        r = cosmo_pe_read(t.c_str(), imps, sizeof imps); a = cosmo_avx_scan(t.c_str());
+        r = cosmo_pe_read(t.c_str(), imps, sizeof imps, dely, sizeof dely); a = cosmo_avx_scan(t.c_str());
         CHECK(r.error != 3 && a.error != 4, "%s: internal error (pe %d avx %d)", what, r.error, a.error);
         return r;
     };
@@ -77,13 +85,13 @@ int main(int argc, char **argv) {
     variant("NumberOfRvaAndSizes 0xFFFFFFFF", [&](auto &d) { put32(d, h + 24 + 108, 0xFFFFFFFFu); });
     {   // a name that runs to the end of the file with no terminator
         auto d = base; d.resize(d.size() + 300, 'A'); spit(t, d.data(), d.size());
-        r = cosmo_pe_read(t.c_str(), imps, sizeof imps); CHECK(r.error != 3, "unterminated trailing data: internal error");
+        r = cosmo_pe_read(t.c_str(), imps, sizeof imps, dely, sizeof dely); CHECK(r.error != 3, "unterminated trailing data: internal error");
     }
 
     // 5. An exception inside every boundary function comes back as an error code
     setenv("COSMO_NATIVE_TEST_THROW", "1", 1);
     strcpy(imps, "garbage");
-    r = cosmo_pe_read(argv[1], imps, sizeof imps); CHECK(r.error == 3 && imps[0] == 0, "pe_read with a throw inside: error %d imports '%s'", r.error, imps);
+    r = cosmo_pe_read(argv[1], imps, sizeof imps, dely, sizeof dely); CHECK(r.error == 3 && imps[0] == 0, "pe_read with a throw inside: error %d imports '%s'", r.error, imps);
     CHECK(cosmo_avx_scan(argv[1]).error == 4, "avx_scan with a throw inside");
     char out[64] = "garbage"; CHECK(cosmo_controllers(out, sizeof out) == 0 && out[0] == 0, "controllers with a throw inside");
     CHECK(cosmo_on_battery() == -1, "on_battery with a throw inside");

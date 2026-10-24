@@ -16,7 +16,7 @@
 namespace {
 struct Section { uint32_t va, vsize, rawsize, rawptr; };
 
-void pe_read(const char *path, cosmo_pe_info &r, std::string &list) {
+void pe_read(const char *path, cosmo_pe_info &r, std::string &list, std::string &delaylist) {
 #ifdef COSMO_TEST_HOOKS
     if (getenv("COSMO_NATIVE_TEST_THROW")) throw std::bad_alloc();
 #endif
@@ -58,7 +58,7 @@ void pe_read(const char *path, cosmo_pe_info &r, std::string &list) {
         return false;
     };
     std::set<std::string> seen;
-    auto add = [&](uint32_t nameRva) {
+    auto add = [&](std::string &target, uint32_t nameRva) {
         uint64_t o;
         if (!off(nameRva, o)) return;
         char buf[257] = {};
@@ -67,8 +67,8 @@ void pe_read(const char *path, cosmo_pe_info &r, std::string &list) {
         std::string s(buf, strnlen(buf, n));
         for (auto &c : s) c = char(std::tolower(static_cast<unsigned char>(c)));
         if (s.empty() || !seen.insert(s).second) return;
-        if (!list.empty()) list += ',';
-        list += s;
+        if (!target.empty()) target += ',';
+        target += s;
     };
     const uint64_t dd = opt + (plus ? 112 : 96);
     uint32_t ndirs = 0;
@@ -76,21 +76,23 @@ void pe_read(const char *path, cosmo_pe_info &r, std::string &list) {
     uint32_t rva, name;
     uint64_t o;
     if (ndirs > 1 && f.u32(dd + 8, rva) && rva && off(rva, o))                 // import directory: 20-byte descriptors, name RVA at +12
-        for (uint32_t i = 0; i < 4096 && f.u32(o + uint64_t(i) * 20 + 12, name) && name; i++) add(name);
+        for (uint32_t i = 0; i < 4096 && f.u32(o + uint64_t(i) * 20 + 12, name) && name; i++) add(list, name);
     if (ndirs > 14 && f.u32(dd + 14 * 8, rva) && rva) r.clr = 1;                // CLR (.NET) header directory
     if (ndirs > 13 && f.u32(dd + 13 * 8, rva) && rva && off(rva, o))           // delay-load directory: 32-byte descriptors, name RVA at +4
-        for (uint32_t i = 0; i < 4096 && f.u32(o + uint64_t(i) * 32 + 4, name) && name; i++) { add(name); r.delay_imports++; }
+        for (uint32_t i = 0; i < 4096 && f.u32(o + uint64_t(i) * 32 + 4, name) && name; i++) { add(delaylist, name); r.delay_imports++; }
 }
 } // namespace
 
-extern "C" cosmo_pe_info cosmo_pe_read(const char *path, char *imports, size_t cap) noexcept {
+extern "C" cosmo_pe_info cosmo_pe_read(const char *path, char *imports, size_t cap, char *delay, size_t delaycap) noexcept {
     cosmo_pe_info r{};
     if (imports && cap) imports[0] = 0;
+    if (delay && delaycap) delay[0] = 0;
     if (!path) { r.error = 1; return r; }
     try {
-        std::string list;
-        pe_read(path, r, list);
+        std::string list, delaylist;
+        pe_read(path, r, list, delaylist);
         if (imports && cap) { const size_t n = std::min(list.size(), cap - 1); memcpy(imports, list.data(), n); imports[n] = 0; }
+        if (delay && delaycap) { const size_t n = std::min(delaylist.size(), delaycap - 1); memcpy(delay, delaylist.data(), n); delay[n] = 0; }
     } catch (...) {   // nothing may escape into Swift (it can't catch C++ exceptions); report it instead
         r = cosmo_pe_info{}; r.error = 3;
         if (imports && cap) imports[0] = 0;

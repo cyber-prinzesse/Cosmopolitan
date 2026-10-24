@@ -3,6 +3,8 @@ import SwiftUI
 // DLL names an .exe imports (PE import directory), lowercased. Drives the launch check.
 // Native (Sources/Native/pe.cpp): normal AND delay-load imports, so a game that delay-loads d3d12 or xinput is seen too.
 func exeImports(_ path: String) -> [String] { peRead(path).imports }
+// Delay-load-only imports (loaded at runtime from the program's own folders): optional, so not counted as "missing DLLs".
+func exeDelayImports(_ path: String) -> [String] { peRead(path).delay }
 // Executable era: "dos" (plain MZ), "win16" (NE), or "pe" with the subsystem major version the linker stamped
 // (4 = Windows 95/NT4 era, 5 = 2000/XP, 6+ = Vista and later). Old ones get a virtual desktop so fullscreen mode switches don't fight Retina.
 // `linker` is OptionalHeader.MajorLinkerVersion: 6 = Visual C++ 6 (1998), 7–9 = VC 2002–2008, 10+ = 2010 and later, 2 = GNU ld (MinGW),

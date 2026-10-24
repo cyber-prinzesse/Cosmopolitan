@@ -8,16 +8,16 @@ extension Model {
         if peRead(exe).info.error != 0 {   // truncated or malformed header: a clear answer instead of a guess
             var n = Needs(drivers: nil, verbs: [], note: "Launch check \(name): unreadable executable (damaged or truncated file)\n"); n.status = .red; return n
         }
-        var imps = exeImports(exe)
+        var imps = exeImports(exe), impSrc = exe   // the exe imps came from (switches to the real game below)
         // CD Projekt's REDprelauncher (The Witcher 3, Cyberpunk 2077): launcher-configuration.json names the real game. Inspect that one, with
         // its own folder's DLLs (they show Direct3D 12), and start it with --launcher-skip: REDlauncher's Qt window can't get an OpenGL
         // context here, and the prelauncher clears Qt's environment variables, so the launcher can't be helped from outside.
         let cdpr = Model.redGame(dir), adir = cdpr.map { ($0.exe as NSString).deletingLastPathComponent } ?? dir
-        if let cdpr { imps = exeImports(cdpr.exe) }
+        if let cdpr { imps = exeImports(cdpr.exe); impSrc = cdpr.exe }
         // Unreal games ship a tiny bootstrap exe; the real one is <Game>/Binaries/Win64/<Game>-Win64-Shipping.exe. Inspect that instead.
         if !imps.contains(where: { $0.hasPrefix("d3d") || $0 == "vulkan-1.dll" || $0 == "opengl32.dll" }), fm.fileExists(atPath: dir + "/Engine"),   // Unreal install root only
            let en = fm.enumerator(atPath: dir), let real = en.compactMap({ $0 as? String }).first(where: { $0.lowercased().hasSuffix("-shipping.exe") || ($0.contains("/Binaries/Win64/") && $0.lowercased().hasSuffix(".exe") && !$0.hasPrefix("Engine/")) }) {
-            imps = exeImports("\(dir)/\(real)")
+            imps = exeImports("\(dir)/\(real)"); impSrc = "\(dir)/\(real)"
         }
         // Unreal 5 loads its D3D12 RHI at runtime (no import) but ships the Agility SDK beside the exe: Binaries/Win64/D3D12/D3D12Core.dll.
         if !imps.contains("d3d12.dll"), let en = fm.enumerator(atPath: dir) {
@@ -135,7 +135,10 @@ extension Model {
         // §7.10 Locale: LANG=ja_JP.UTF-8 (etc.) reaches Wine as-is; CJK locales also get the matching fonts so old games don't show boxes.
         if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
         if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
-        let unknown = missing.filter { depVerbs[$0] == nil && Model.runtimeFor(dll: $0, is32: is32) == nil }
+        // Delay-load-only imports (e.g. Epic's libcef.dll, loaded at runtime from the launcher's own folders) don't block startup, so a
+        // missing one is not a "Won't run" DLL. They still count for the proactive runtime/verb installs above when they map to one.
+        let optional = Set(exeDelayImports(impSrc))
+        let unknown = missing.filter { !optional.contains($0) && depVerbs[$0] == nil && Model.runtimeFor(dll: $0, is32: is32) == nil }
         let pfxR = "\(bottlesDir)/\(bottle)"
         n.runtimes = runtimes.filter { !fm.fileExists(atPath: Model.runtimeMarker(pfxR, $0)) }.sorted { $0.rawValue < $1.rawValue }
         if !n.runtimes.isEmpty { parts.append("installs " + n.runtimes.map { $0.pin.name }.joined(separator: ", ") + " from Microsoft first") }

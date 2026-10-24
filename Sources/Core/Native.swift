@@ -21,10 +21,12 @@ func procFind(_ needle: String, under dir: String? = nil) -> [Int32] {
 func isRunning(_ needle: String) -> Bool { !procFind(needle).isEmpty }
 // Item 28: what a program needs, decided in C++ from its imports (and those of the DLLs beside it), bitness and .NET header.
 func preflight(_ imports: [String], is32: Bool, clr: Bool) -> cosmo_preflight_result { cosmo_preflight(imports.joined(separator: ","), is32 ? 1 : 0, clr ? 1 : 0) }
-// PE facts + imports (normal and delay-load), lower-cased.
-func peRead(_ path: String) -> (info: cosmo_pe_info, imports: [String]) {
-    var buf = [CChar](repeating: 0, count: 16384)
-    let info = cosmo_pe_read(path, &buf, buf.count)
-    let s = String(cString: buf)
-    return (info, s.isEmpty ? [] : s.components(separatedBy: ","))
+// PE facts + imports, lower-cased. `imports` = normal + delay-load (so graphics-API detection still sees a delay-loaded d3d12);
+// `delay` = the delay-load-only ones (optional — the program loads them at runtime from its own folders and copes if absent).
+func peRead(_ path: String) -> (info: cosmo_pe_info, imports: [String], delay: [String]) {
+    var buf = [CChar](repeating: 0, count: 16384), dbuf = [CChar](repeating: 0, count: 4096)
+    let info = cosmo_pe_read(path, &buf, buf.count, &dbuf, dbuf.count)
+    let norm = String(cString: buf), del = String(cString: dbuf)
+    let n = norm.isEmpty ? [] : norm.components(separatedBy: ","), d = del.isEmpty ? [] : del.components(separatedBy: ",")
+    return (info, n + d, d)
 }

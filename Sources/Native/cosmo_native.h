@@ -29,8 +29,9 @@ typedef struct {
     int32_t  error;            // 0 ok, 1 cannot open, 2 truncated or malformed header, 3 internal error
     uint8_t  clr;              // 1 = has a .NET (CLR) header: a managed program, whatever it imports
 } cosmo_pe_info;
-// Reads header facts and writes the comma-separated, lower-cased import DLL list (normal + delay-load) into `imports`.
-cosmo_pe_info cosmo_pe_read(const char *path, char *imports, size_t cap) COSMO_NOEXCEPT;
+// Reads header facts and the lower-cased import DLL lists: `imports` = normal (required) imports; `delay` = delay-load-only imports
+// (loaded at runtime, optional — not in `imports`). Both comma-separated.
+cosmo_pe_info cosmo_pe_read(const char *path, char *imports, size_t cap, char *delay, size_t delaycap) COSMO_NOEXCEPT;
 
 // Connected game controllers via IOKit HID (gamepads, joysticks, multi-axis). Writes comma-separated product names; returns count.
 int cosmo_controllers(char *out, size_t cap) COSMO_NOEXCEPT;
