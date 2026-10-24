@@ -123,9 +123,11 @@ struct ContentView: View {
                     Text(m.driverStatus.1 + (m.driverUpdates.isEmpty ? "" : " · " + m.driverUpdates)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     HStack {
                         Circle().fill(m.padStatus.0).frame(width: 10, height: 10)
-                        Text("Controller").font(.headline)
-                        Text(m.padStatus.1).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        Text("Controller").font(.headline); Spacer()
+                        Button("Switch to XInput") { m.switchPadToXInput() }.controlSize(.small).disabled(m.busy)
+                            .help("One click: put this bottle's controller in XInput mode (SDL presents an Xbox-style pad) — the mode every game reads, The Witcher 3 included. Relaunch the game after. Adaptive triggers/haptics are the per-game DUALSENSE=native option instead.")
                     }
+                    Text(m.padStatus.1).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     ForEach(installedDrivers(), id: \.self) { d in   // read-only: the launch check picks per program
                         Label(driverLabel(d), systemImage: m.drivers.contains(d) ? "checkmark.circle.fill" : "circle")
                             .font(.caption).foregroundStyle(m.drivers.contains(d) ? .primary : .secondary).padding(.leading, 4)

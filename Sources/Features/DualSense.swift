@@ -43,4 +43,14 @@ extension Model {
                       : "Controller back to XInput mode (SDL) for \(appName(exe)).\n"
         return true
     }
+    // One-click (the Controller card's button): force the selected bottle's controller bus into XInput mode — DisableHidraw=1 + SDL on, so
+    // SDL presents an Xbox-style pad that every game reads, including titles with no native DualSense support like The Witcher 3. Same writes
+    // as a pad connecting (controllerConnected), but on demand: for when the game was already open or the pad connected before the app. The
+    // bus is read when the prefix starts, so the game must be relaunched to pick it up.
+    func switchPadToXInput() {
+        guard !selected.isEmpty else { return }
+        let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " "), bus = "HKLM\\System\\CurrentControlSet\\Services\\winebus"
+        _ = sh("env \(env) '\(wineBin)' reg add '\(bus)' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; env \(env) '\(wineBin)' reg add '\(bus)' /v 'Enable SDL' /t REG_DWORD /d 1 /f >/dev/null 2>&1")
+        log += "Controller switched to XInput (SDL) for \(selected) — relaunch the game to pick it up.\n"; logToFile("Controller switched to XInput (SDL) for \(selected).\n"); updateStatus()
+    }
 }
