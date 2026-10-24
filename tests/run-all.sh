@@ -15,7 +15,7 @@ run() {   # run NAME COMMAND…
   grep -E '^(ok|PASS|FAIL|note|tripwire|TRIPWIRE|native tests|decision tests|fuzz)|exited with code|exit [0-9-]+ after|still running after|passed \(|ERROR|Abort|AddressSanitizer|Traceback|Killed|Segmentation|terminating' "$L/$name.log" | sed 's/^/   /'
 }
 run native            ./native/run.sh ${1:-60}
-for t in tripwire_rules first_open_text outlive_app malware_scan launch_wait snapshots gog_signin steam_restart repair_scope tripwire_setup repair_lock dotnet_new_bottle driver_copies registry_ledger pins d3dmetal_versions battery_cap runtimes driver_fallback preflight anticheat save_backups templates pad_connect crash_capture health cleanup_suggestions launchers nightly_test log_start red_launcher community_fixes prefix_update; do
+for t in tripwire_rules x87_gate first_open_text outlive_app malware_scan launch_wait snapshots gog_signin steam_restart repair_scope tripwire_setup repair_lock dotnet_new_bottle driver_copies registry_ledger pins d3dmetal_versions battery_cap runtimes driver_fallback preflight anticheat save_backups templates pad_connect crash_capture health cleanup_suggestions launchers nightly_test log_start red_launcher community_fixes prefix_update; do
   run $t ./safety/$t.sh
 done
 # Steam's window on a Wine 11 engine, when the trial engine is on this Mac (its fix is in the launch code, not the engine). 300 s cap.

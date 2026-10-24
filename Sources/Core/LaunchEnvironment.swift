@@ -35,6 +35,12 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // msync: thread waits on Mach semaphores instead of server round-trips — less CPU, no effect on rendering. (The DLSS→MetalFX bridge stays OFF:
     // it was the real cause of the Dawnwalker lag; FSR in the game menu is the right upscaler under D3DMetal.)
     if e["WINEMSYNC"] == nil { e["WINEMSYNC"] = "1" }
+    // Rosetta emulates x87 floating-point slowly, so 32-bit programs whose DLLs use x87 (old D3D9 games, the i386 C runtime) crawl on a
+    // Wine 11 engine. r29-type Wine 11 engines carry athei's x87sidecar hook (Highball patch 0012): with ROSETTA_X87_PATH set, every
+    // 32-bit program re-execs through the sidecar's ARM64 x87 JIT (measured ~10x on a cos loop). Engine-gated — Wine 10 has no such hook —
+    // and only when the MIT-licensed sidecar binary is installed. The patch only re-execs i386 targets, so it's a no-op for 64-bit.
+    let x87 = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_X87SIDECAR"] : nil) ?? x87sidecarPath
+    if engineIsWine11(), FileManager.default.fileExists(atPath: x87) { e["ROSETTA_X87_PATH"] = x87 }
     // On battery, in Low Power Mode or thermally throttled (§7.8, item 32): 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales.
     // Off again when plugged in, Low Power Mode off and cool.
     // D3DM_MAX_FPS only where the installed D3DMetal documents it (4.0 beta); 3.0 ignores it, and the launch check says the cap isn't available.

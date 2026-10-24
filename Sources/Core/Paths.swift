@@ -22,6 +22,8 @@ var engineName: String { UserDefaults.standard.string(forKey: "engine") ?? defau
 var engineDir: String { support + "/engines/\(engineName)/wswine.bundle" }
 var wineBin: String { engineDir + "/bin/wine" }
 let bottlesDir = support + "/bottles"
+// athei's x87sidecar (MIT) — the ARM64 x87 JIT that speeds up 32-bit code under Rosetta on Wine 11 engines (see LaunchEnvironment).
+let x87sidecarPath = support + "/x87sidecar"
 var engineOK: Bool { FileManager.default.fileExists(atPath: wineBin) }   // re-evaluated: first-run setup installs it while the app runs
 // Drivers live in engines/renderer/<name>/wine; the engine loads a folder's DLLs as builtins when WINEDLLPATH_<slot> points at it.
 // Per-bottle choice is DRIVERS=dxmt,cnc_ddraw in cosmopolitan.env (absent = dxmt). Drop a new renderer folder in and add its slot here.
