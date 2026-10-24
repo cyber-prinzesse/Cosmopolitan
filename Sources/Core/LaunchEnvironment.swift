@@ -70,4 +70,6 @@ func engineUsesPrepend() -> Bool {
     prependEngines[ntdll] = v; return v
 }
 // Wine 11's layout: the real loader (with the address-space reserve) sits in lib/wine/x86_64-unix and bin/wine hands over to it.
-func engineIsWine11() -> Bool { FileManager.default.fileExists(atPath: engineDir + "/lib/wine/x86_64-unix/wine") }
+func engineIsWine11() -> Bool { engineIsWine11(engineName) }
+// For a named engine folder under support/engines (the Settings picker labels and the switch warning), not only the active one.
+func engineIsWine11(_ name: String) -> Bool { FileManager.default.fileExists(atPath: support + "/engines/\(name)/wswine.bundle/lib/wine/x86_64-unix/wine") }

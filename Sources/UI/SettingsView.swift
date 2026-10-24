@@ -29,9 +29,9 @@ struct SettingsView: View {
                     ["daily.cvd", "daily.cld"].contains { FileManager.default.fileExists(atPath: "\(d)/\($0)") } } ? p : nil },
                  "clamav", "scans downloaded programs for malware (Install also gets its virus database)")]
     }
-    var engines: [String] {
+    var engines: [String] {   // any engine folder with a Wine binary, so a Wine 11 beta added from a folder shows up next to Wine 10
         ((try? FileManager.default.contentsOfDirectory(atPath: support + "/engines")) ?? [])
-            .filter { $0.hasPrefix("WS12Wine") && FileManager.default.fileExists(atPath: support + "/engines/\($0)/wswine.bundle/bin/wine") }.sorted()
+            .filter { !$0.hasPrefix(".") && FileManager.default.fileExists(atPath: support + "/engines/\($0)/wswine.bundle/bin/wine") }.sorted()
     }
 
     var body: some View {
@@ -63,9 +63,11 @@ struct SettingsView: View {
             if showAdvanced {
                 Section("Engine") {
                     Picker("Wine engine", selection: $engine) {
-                        ForEach(Set(engines + [engine]).sorted(), id: \.self) { e in Text(e + (e == defaultEngine ? "  (tested)" : "")).tag(e) }
+                        ForEach(Set(engines + [engine, defaultEngine]).sorted(), id: \.self) { e in Text(engineLabel(e)).tag(e) }
                     }
-                    Text("Changing the engine takes effect for programs started afterwards. 11.x engines currently show Steam black on macOS 27.").font(.caption).foregroundStyle(.secondary)
+                    .onChange(of: engine) { old, new in if old != new { m.engineSwitched(to: new) } }
+                    Text("Wine 10 is the tested engine and stays your safe choice. Wine 11 is a beta: it runs more launchers, but upgrades each bottle the first time it opens, which can't be undone — so a snapshot of every bottle is taken when you switch, and you can roll back from Advanced › Manage bottle › Snapshots.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Button("Add an engine from a folder…") { addEngine() }
                 }
                 Section("Helper tools (Homebrew)") {
                     ForEach(tools, id: \.name) { t in
@@ -87,6 +89,23 @@ struct SettingsView: View {
         }.formStyle(.grouped).scrollContentBackground(.hidden).frame(width: 520, height: 600).frost()
     }
 
+    func engineLabel(_ e: String) -> String {
+        e + (e == defaultEngine ? "  (Wine 10, tested)" : engineIsWine11(e) ? "  (Wine 11, beta)" : "")
+    }
+    // Register an engine the user already has (a folder containing wswine.bundle, e.g. a Highball build) by linking it into the app's
+    // engines folder, so it appears in the picker. Nothing is downloaded or copied; the bottle upgrade happens only when it's selected.
+    func addEngine() {
+        let p = NSOpenPanel(); p.canChooseDirectories = true; p.canChooseFiles = false; p.prompt = "Add engine"
+        p.message = "Choose an engine folder (it contains wswine.bundle)."
+        guard p.runModal() == .OK, let u = p.url else { return }
+        let src = FileManager.default.fileExists(atPath: u.path + "/wswine.bundle/bin/wine") ? u.path
+            : u.lastPathComponent == "wswine.bundle" ? (u.deletingLastPathComponent().path) : ""
+        guard !src.isEmpty, FileManager.default.fileExists(atPath: src + "/wswine.bundle/bin/wine") else { m.log += "That folder has no wswine.bundle/bin/wine; not added.\n"; return }
+        let name = (src as NSString).lastPathComponent, dst = support + "/engines/\(name)"
+        if FileManager.default.fileExists(atPath: dst) { m.log += "An engine named \(name) is already there.\n"; return }
+        do { try FileManager.default.createSymbolicLink(atPath: dst, withDestinationPath: src); m.log += "Added engine \(name)\(engineIsWine11(name) ? " (Wine 11, beta)" : ""). Choose it above to use it; Wine 10 stays available.\n" }
+        catch { m.log += "Could not add the engine: \(error.localizedDescription)\n" }
+    }
     func install(_ name: String, _ formula: String) {
         installing = name
         // ClamAV: also its database, with ClamAV's own freshclam (configured from Homebrew's sample, whose "Example" line disables it).
