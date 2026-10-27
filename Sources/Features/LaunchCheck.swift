@@ -147,10 +147,13 @@ extension Model {
         // Item 3: Battle.net's 32-bit Chromium GPU process exits on Wine 11 (endless spinner); Wine 10 draws it.
         let bnWine11 = engineIsWine11() && (exe as NSString).lastPathComponent.lowercased().hasPrefix("battle.net")
         if bnWine11 { parts.append("Battle.net doesn't start on Wine 11 yet — switch back to Wine 10 in Settings › Engine") }
+        // Item 3: Ubisoft Connect's window draws only on a Wine 11 engine (launchCmd starts upc.exe with Chromium in-process); Wine 10: blank.
+        let ubiWine10 = ubisoftClient(exe) != nil && !engineIsWine11()
+        if ubisoftClient(exe) != nil { parts.append(ubiWine10 ? "Ubisoft Connect's window stays blank on Wine 10 — it draws on the Wine 11 engine (Settings › Engine)" : "starts upc.exe with Chromium in-process, so its window draws") }
         n.note = imps.isEmpty && parts.isEmpty ? "" : "Launch check \(name): " + (imps.isEmpty ? "" : "\(imps.count) DLLs") + (parts.isEmpty ? ", all available" : (imps.isEmpty ? "" : " — ") + parts.joined(separator: "; ")) + "\n"
         n.verbs = winetricks == nil ? [] : verbs
         // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
-        let red = !unknown.isEmpty || bnWine11 || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
+        let red = !unknown.isEmpty || bnWine11 || ubiWine10 || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
         let yellow = !verbs.isEmpty || !n.runtimes.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
         n.needsDotNet = !dotnet.isEmpty
         n.status = red || dotnet == "bad" ? .red : yellow || dotnet == "pending" ? .yellow : .green
