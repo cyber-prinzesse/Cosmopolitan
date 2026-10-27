@@ -4,18 +4,6 @@ import Foundation
 // of a Wine 10 bottle can't be undone. So before the new engine is used, snapshot every bottle (APFS clones, cheap and quick); a
 // switch is then reversible from Advanced › Manage bottle › Snapshots. Wine 10 stays installed and selectable as the safe fallback.
 extension Model {
-    // Item 3: Battle.net's 32-bit Chromium GPU process exits on Wine 11 (r29: endless spinner) while Wine 10 draws it. The engine is
-    // app-wide, so a switch from Wine 10 to Wine 11 asks first when any bottle has Battle.net. False = keep the current engine.
-    func battleNetBottles() -> [String] {
-        bottles.filter { FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe") }
-    }
-    func confirmEngineSwitch(from old: String, to new: String) -> Bool {
-        guard engineIsWine11(new), !engineIsWine11(old) else { return true }
-        let bn = battleNetBottles()
-        guard !bn.isEmpty else { return true }
-        return ask("Battle.net doesn't start on Wine 11 yet", "On the Wine 11 beta it stays on an endless spinner; on Wine 10 it works. The engine applies to every bottle, including \(bn.joined(separator: ", ")). Cancel keeps \(old).", yes: "Switch anyway")
-    }
-
     func engineSwitched(to newEngine: String) {
         let wine11 = engineIsWine11(newEngine)
         let targets = bottles.filter { FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }

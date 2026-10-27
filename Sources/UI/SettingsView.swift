@@ -12,7 +12,6 @@ struct SettingsView: View {
     @AppStorage("onboardingDone") var onboardingDone = false
     @State var padCheck = ""
     @AppStorage("engine") var engine = defaultEngine
-    @State var revertingEngine = false   // set while a cancelled switch puts the picker back, so that change is not a switch
     @AppStorage("autostartSteam") var autostartSteam = true
     @AppStorage("dailyCleanup") var dailyCleanup = true
     @AppStorage("compatReports") var compatReports = false
@@ -66,11 +65,7 @@ struct SettingsView: View {
                     Picker("Wine engine", selection: $engine) {
                         ForEach(Set(engines + [engine, defaultEngine]).sorted(), id: \.self) { e in Text(engineLabel(e)).tag(e) }
                     }
-                    .onChange(of: engine) { old, new in
-                        if revertingEngine { revertingEngine = false; return }
-                        guard old != new else { return }
-                        if m.confirmEngineSwitch(from: old, to: new) { m.engineSwitched(to: new) } else { revertingEngine = true; engine = old }
-                    }
+                    .onChange(of: engine) { old, new in if old != new { m.engineSwitched(to: new) } }
                     Text("Wine 10 is the tested engine and stays your safe choice. Wine 11 is a beta: it runs more launchers, but upgrades each bottle the first time it opens, which can't be undone — so a snapshot of every bottle is taken when you switch, and you can roll back from Advanced › Manage bottle › Snapshots.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Button("Add an engine from a folder…") { addEngine() }
                 }
