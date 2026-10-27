@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--prewarm-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { _ = logFile; return }   // the window app's fresh log begins at its start, not at its first write
         cliMode = true
         let m = Model()
@@ -31,6 +31,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--hints": m.log += m.powerHints().isEmpty ? "no power/thermal hints right now\n" : m.powerHints()
         case "--offline": m.offlineCheck()
         case "--shaders": m.shaderCacheReport()
+        case "--prewarm-shaders": m.prewarmBottleShaders()
         case "--hudocr": if i + 2 < a.count { m.log += "fps read from image: \(Model.hudFPS(in: a[i + 2]).map { String($0) } ?? "none")\n" }
         case "--saves": if i + 2 < a.count { m.log += "save folders: \(m.saveFolders(a[i + 2]))\n" }
         case "--mods": if i + 2 < a.count { m.log += "\(m.mods(a[i + 2]))\n" }

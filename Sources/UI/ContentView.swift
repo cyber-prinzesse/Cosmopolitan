@@ -205,6 +205,11 @@ struct ContentView: View {
                                 .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the newest 3 snapshots of each bottle. Runs by itself once a day.")
                             Menu("Shader caches") {
                                 Button("Show sizes") { m.shaderCacheReport() }
+                                Button("Pre-warm compiled shaders") { m.prewarmBottleShaders() }
+                                    .help("Syncs portable DXMT shaders_320.db caches into the bottle and pre-warms them through the local Metal GPU driver.")
+                                Button("Import shared shader cache…") { m.importShaderCachePicker() }
+                                    .help("Merges a shared DXMT shaders_320.db file into this bottle and pre-warms the Metal GPU cache.")
+                                Divider()
                                 Button("Clear all (games recompile on next start)", role: .destructive) { m.clearShaderCaches() }
                             }.disabled(m.selected.isEmpty)
                         }.fixedSize()

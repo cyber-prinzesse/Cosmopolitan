@@ -26,15 +26,21 @@ extension Model {
         return "Tuned \(project): VSync off, shadows/GI/reflections start at Medium, \(pool / 1000) GB texture pool (change freely in the game's menu).\n"
     }
 
-    // Steam overlay hooks the game's presentation and costs frames under translation; switch it off in Steam's config while Steam is down.
+    // Steam overlay hooks the game's presentation and costs frames under translation; switch it off in Steam's config while Steam is down,
+    // and move GameOverlayRenderer(64).dll aside so modern Steam cannot inject it via full-path LoadLibraryW (which bypasses Wine DllOverrides).
     func tuneSteam() {
-        let cfgs = (try? FileManager.default.contentsOfDirectory(atPath: "\(bottlesDir)/\(selected)/drive_c/Program Files (x86)/Steam/userdata")) ?? []
+        let steamDir = "\(bottlesDir)/\(selected)/drive_c/Program Files (x86)/Steam", fm = FileManager.default
+        let cfgs = (try? fm.contentsOfDirectory(atPath: "\(steamDir)/userdata")) ?? []
         for u in cfgs {
-            let p = "\(bottlesDir)/\(selected)/drive_c/Program Files (x86)/Steam/userdata/\(u)/config/localconfig.vdf"
+            let p = "\(steamDir)/userdata/\(u)/config/localconfig.vdf"
             guard var s = try? String(contentsOfFile: p, encoding: .utf8), !s.contains("\"EnableGameOverlay\""), let r = s.range(of: "\"system\"\n\t{\n") else { continue }
             s.insert(contentsOf: "\t\t\"EnableGameOverlay\"\t\t\"0\"\n", at: r.upperBound)
             try? s.write(toFile: p, atomically: true, encoding: .utf8)
             logToFile("Steam overlay switched off\n"); log += "Steam overlay switched off (costs frames under translation).\n"
+        }
+        for dll in ["GameOverlayRenderer64.dll", "GameOverlayRenderer.dll"] where fm.fileExists(atPath: "\(steamDir)/\(dll)") {
+            try? fm.removeItem(atPath: "\(steamDir)/\(dll).disabled")
+            try? fm.moveItem(atPath: "\(steamDir)/\(dll)", toPath: "\(steamDir)/\(dll).disabled")
         }
     }
 

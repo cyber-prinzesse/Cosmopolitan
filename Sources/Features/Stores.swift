@@ -112,6 +112,7 @@ extension Model {
         }
         for d in ["d3d11", "dxgi", "d3d10core"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steamwebhelper.exe\\DllOverrides", d, "REG_SZ", "builtin") }
         for d in ["xinput1_1", "xinput1_2", "xinput1_3", "xinput1_4", "xinput9_1_0", "xinputuap", "dinput", "dinput8"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\DllOverrides", d, "REG_SZ", "") }
+        for d in ["gameoverlayrenderer", "gameoverlayrenderer64"] { reg("HKCU\\Software\\Wine\\DllOverrides", d, "REG_SZ", "") }
         reg("HKCU\\Control Panel\\Desktop", "LogPixels", "REG_DWORD", "96")
         log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI).\n"
     }
