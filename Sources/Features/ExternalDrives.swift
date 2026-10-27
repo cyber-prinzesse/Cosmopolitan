@@ -9,7 +9,7 @@ extension Model {
                 .map { $0.volumeIsInternal == false && $0.volumeIsReadOnly == false } ?? false }
     }
     func moveBottle(to volume: String) {
-        let name = selected, src = "\(bottlesDir)/\(name)", dstDir = "\(volume)/Cosmopolitan Bottles", dst = "\(dstDir)/\(name)"
+        let name = selected, src = "\(bottlesDir)/\(name)", dstDir = "\(volume)/\(appDataName) Bottles", dst = "\(dstDir)/\(name)"
         guard !name.isEmpty, !FileManager.default.fileExists(atPath: dst) else { log += "Move: \(dst) already exists.\n"; return }
         guard sh("ps -axo command= | grep -c '\\.exe'").hasPrefix("0") else { log += "Move: quit Steam and games in this bottle first.\n"; return }
         busy = true; log += "Moving \(name) to \(volume)… (copy, verify, then replace the original with a link)\n"

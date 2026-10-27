@@ -2,7 +2,11 @@ import SwiftUI
 
 // Engine: open-source Wine 10.0 (Sikarugir build) kept in our own folder. No CodeWeavers code.
 // ponytail: Wine 11.x Staging renders Steam's UI black on macOS 27 (client surface detached); stay on 10.0 until that's fixed upstream.
-let support = NSHomeDirectory() + "/Library/Application Support/Cosmopolitan"
+// Cosmopolitan Beta (bundle id local.cosmopolitan.beta): the Wine 11 engine on copies of the bottles, next to the everyday app. A Wine 11
+// upgrade of a bottle can't be undone, so everything named after the app gets its own place: data, log, shortcuts, shared/cloud/clip folders.
+let isBetaBuild = Bundle.main.bundleIdentifier == "local.cosmopolitan.beta"
+let appDataName = isBetaBuild ? "Cosmopolitan Beta" : "Cosmopolitan"
+let support = NSHomeDirectory() + "/Library/Application Support/\(appDataName)"
 // Test build (bundle id ending in ".test", made by tests/lib/testenv.sh): its own settings domain and a throwaway home from COSMO_TEST_HOME.
 let isTestBuild = Bundle.main.bundleIdentifier?.hasSuffix(".test") == true
 // Called first thing at startup. Sets HOME and CFFIXED_USER_HOME to the throwaway folder (NSHomeDirectory() follows only the latter), then

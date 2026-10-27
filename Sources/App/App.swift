@@ -2,7 +2,7 @@ import SwiftUI
 import Sparkle
 
 nonisolated(unsafe) var cliExitCode: Int32 = 0   // a CLI mode can set its own exit code (--launch --wait: the program's, or 124)
-let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, updaterDelegate: nil, userDriverDelegate: nil)
+let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isBetaBuild, updaterDelegate: nil, userDriverDelegate: nil)
 
 @main struct CosmopolitanApp: App {
     // Terminal use: Cosmopolitan.app/Contents/MacOS/Cosmopolitan --troubleshoot [bottle] | --repair [bottle]  (same code as the buttons)
@@ -119,7 +119,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         print(m.log); exit(cliExitCode)
     }
     var body: some Scene {
-        WindowGroup("Cosmopolitan") { ContentView().handlesExternalEvents(preferring: ["launch"], allowing: ["*"]) }   // cosmopolitan://launch?name=<program> goes to the existing window, not a new one (§7.7 via Shortcuts/Siri)
+        WindowGroup(appDataName) { ContentView().handlesExternalEvents(preferring: ["launch"], allowing: ["*"]) }   // cosmopolitan://launch?name=<program> goes to the existing window, not a new one (§7.7 via Shortcuts/Siri)
             .commands { CommandGroup(after: .appInfo) { Button("Check for Updates…") { updater.checkForUpdates(nil) } } }
             .windowStyle(.hiddenTitleBar)   // the frost runs up to the window's top edge, behind the traffic lights
         Settings { SettingsView() }

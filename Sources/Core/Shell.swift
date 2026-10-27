@@ -1,7 +1,7 @@
 import SwiftUI
 
 // Everything shown in the log pane is also appended to ~/Library/Logs/Cosmopolitan.log (truncated on each app start).
-let logPath = NSHomeDirectory() + "/Library/Logs/Cosmopolitan.log"
+let logPath = NSHomeDirectory() + "/Library/Logs/\(appDataName).log"
 let logFile: FileHandle? = {   // the app's start begins a fresh log; command-line runs append, so they never wipe the app's log
     if !cliMode || !FileManager.default.fileExists(atPath: logPath) { FileManager.default.createFile(atPath: logPath, contents: nil) }
     let h = FileHandle(forWritingAtPath: logPath); h?.seekToEndOfFile(); return h

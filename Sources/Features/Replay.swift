@@ -9,7 +9,7 @@ final class ReplayRecorder {
     static let shared = ReplayRecorder()
     var game = "", running = false, segment = 0, hotkeys: [EventHotKeyRef?] = []
     var dir: String { NSTemporaryDirectory() + "cosmo-replay" }
-    var gallery: String { NSHomeDirectory() + "/Movies/Cosmopolitan Clips/\(game)" }
+    var gallery: String { NSHomeDirectory() + "/Movies/\(appDataName) Clips/\(game)" }
     func start(game: String, log: @escaping (String) -> Void) {
         self.game = game; running = true
         _ = shell("rm -rf '\(dir)'; mkdir -p '\(dir)' '\(gallery)'")
