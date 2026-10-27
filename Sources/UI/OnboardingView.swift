@@ -127,8 +127,8 @@ struct OnboardingView: View {
     var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
             Spacer()
-            Text("Play your Windows games on this Mac.").font(.system(size: 30, weight: .bold))
-            Text("Cosmopolitan sets everything up for each game and keeps it working.").font(.title3).foregroundStyle(.secondary)
+            Text("Play your Windows games on this Mac.").font(Cosmo.display(40)).tracking(-0.045 * 40)
+            Text("Cosmopolitan sets everything up for each game and keeps it working.").font(Cosmo.body).foregroundStyle(.secondary)
             Spacer()
             HStack(spacing: 4) { Text("By continuing you agree to the").font(.caption).foregroundStyle(.secondary); Button("terms of use") { showTerms() }.buttonStyle(.link).foregroundStyle(Theme.accent).font(.caption) }
         }
@@ -136,14 +136,14 @@ struct OnboardingView: View {
 
     var thisMac: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(facts.limited ?? "This Mac plays Windows games well.").font(.title2.bold())
+            Text(facts.limited ?? "This Mac plays Windows games well.").font(Cosmo.title)
             Text("\(facts.chip) · \(facts.ramGB) GB memory · macOS \(facts.macOS) · \(facts.freeGB) GB free").foregroundStyle(.secondary)
         }
     }
 
     var rosetta: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Windows games are made for a different kind of chip. Apple's free Rosetta translates them.").font(.title2.bold())
+            Text("Windows games are made for a different kind of chip. Apple's free Rosetta translates them.").font(Cosmo.title)
             if facts.rosetta { Label("Rosetta is installed.", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
             else {
                 Text("Installing Rosetta means agreeing to Apple's software licence for it.")
@@ -161,7 +161,7 @@ struct OnboardingView: View {
 
     var toolkit: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Newer games need Apple's free Game Porting Toolkit.").font(.title2.bold())
+            Text("Newer games need Apple's free Game Porting Toolkit.").font(Cosmo.title)
             if m.d3dmetalNow != nil, d3dmetalOK {
                 Label("Apple's Game Porting Toolkit is ready (version \(m.d3dmetalNow!.pretty)).", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent)
             } else if m.d3dmetalNow != nil, let lic = d3dmetalLicenseFile() {
@@ -184,7 +184,7 @@ struct OnboardingView: View {
     @AppStorage("onboardingStores") var chosen = ""   // stores to open or sign in to once the Library opens (a sheet can't open another sheet)
     var games: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Where are your games?").font(.title2.bold())
+            Text("Where are your games?").font(Cosmo.title)
             ForEach(facts.found, id: \.store) { f in Label("We found \(f.store) with \(f.games) game\(f.games == 1 ? "" : "s"). They're in your Library.", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
             HStack {
                 ForEach(["Steam", "GOG", "Epic Games", "Battle.net"], id: \.self) { s in
@@ -202,7 +202,7 @@ struct OnboardingView: View {
 
     var controller: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Press any button on your controller.").font(.title2.bold())
+            Text("Press any button on your controller.").font(Cosmo.title)
             Label(pressed ? "Got it ✓" : nativeControllers().first.map { "\($0) is connected. Waiting for a button…" } ?? "No controller found yet. Turn it on, or pair it in System Settings › Bluetooth.",
                   systemImage: pressed ? "checkmark.circle.fill" : "gamecontroller").foregroundStyle(pressed ? Theme.accent : .primary)
             Button("Test rumble (optional)") { m.testRumble() }
@@ -215,11 +215,11 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 14) {
             Spacer()
             if m.setupNeeded {   // never "all set" while setup is still running or didn't finish
-                Label("Almost there.", systemImage: "hourglass").font(.system(size: 28, weight: .bold))
-                Text("Your Library opens next. Games can start once setup has finished; the line below shows how it's going.").font(.title3)
+                Label("Almost there.", systemImage: "hourglass").font(Cosmo.display(28)).tracking(-0.045 * 28)
+                Text("Your Library opens next. Games can start once setup has finished; the line below shows how it's going.").font(Cosmo.body)
             } else {
-                Label("You're all set.", systemImage: "checkmark.seal.fill").font(.system(size: 28, weight: .bold)).foregroundStyle(Theme.accent)
-                Text("Your Library opens next. Add a game with “Add game”; each game says whether it's ready to play.").font(.title3)
+                Label("You're all set.", systemImage: "checkmark.seal.fill").font(Cosmo.display(28)).tracking(-0.045 * 28).foregroundStyle(Theme.accent)
+                Text("Your Library opens next. Add a game with “Add game”; each game says whether it's ready to play.").font(Cosmo.body)
             }
             Spacer()
         }

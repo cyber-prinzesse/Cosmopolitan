@@ -38,13 +38,26 @@ extension Model {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app)])
     }
 
+    // Restricted bottles have no Z:, so an installer outside drive_c (e.g. in Downloads or <bottle>/installers) is staged into C:\installers.
+    func stageInstaller(_ path: String, in bottle: String) -> String {
+        let c = "\(bottlesDir)/\(bottle)/drive_c", z = "\(bottlesDir)/\(bottle)/dosdevices/z:"
+        guard !path.hasPrefix(c + "/"), !FileManager.default.fileExists(atPath: z) else { return path }
+        let dir = "\(c)/installers", dst = "\(dir)/\((path as NSString).lastPathComponent)", fm = FileManager.default
+        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try? fm.removeItem(atPath: dst)
+        if clonefile(path, dst, 0) != 0 { try? fm.copyItem(atPath: path, toPath: dst) }
+        return fm.fileExists(atPath: dst) ? dst : path
+    }
+
     // Automatic: no bottle yet -> create one named after the installer, then run it.
     func install(_ url: URL) {
         let path = url.path
         let go: (String) -> Void = { b in
             self.selected = b
-            if path.lowercased().hasSuffix(".msi") { self.wine(b, ["msiexec", "/i", "Z:" + path.replacingOccurrences(of: "/", with: "\\")]) }
-            else { let need = self.prepare(path); self.start(need, path, [], exe: path, block: true) }   // installers get the same checks as programs
+            let p = self.stageInstaller(path, in: b)
+            let w = p.hasPrefix("\(bottlesDir)/\(b)/drive_c/") ? self.winPath(p) : "Z:" + p.replacingOccurrences(of: "/", with: "\\")
+            if p.lowercased().hasSuffix(".msi") { self.wine(b, ["msiexec", "/i", w]) }
+            else { let need = self.prepare(p); self.start(need, w, [], exe: p, block: true) }   // installers get the same checks as programs
         }
         if selected.isEmpty {
             let name = url.deletingPathExtension().lastPathComponent.replacingOccurrences(of: " ", with: "_")

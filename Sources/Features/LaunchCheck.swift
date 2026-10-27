@@ -117,7 +117,7 @@ extension Model {
         }
         if let v = antiCheatVerdict(acNames, appid: steamGames[exe]?.id, name: steamGames[exe]?.name ?? appName(exe)) { n.anticheat = v; parts.append(v.1) }
         // §8.2 Untrusted executable: not installed by a store client. Warn, never block.
-        if steamGames[exe] == nil, !exe.hasSuffix("/Steam/steam.exe"), !exe.contains("/drive_c/windows/"), !exe.contains("/Program Files/Windows NT/") {
+        if steamGames[exe] == nil, !exe.lowercased().hasSuffix("/steam/steam.exe"), !exe.contains("/drive_c/windows/"), !exe.contains("/Program Files/Windows NT/") {
             parts.append("not installed through a store — run only if you trust where it came from")
         }
         // AVX (§7.2/§4.3): known from the cached disassembly count; Rosetta advertises AVX only to programs that have AVX code.

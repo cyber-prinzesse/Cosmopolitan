@@ -119,7 +119,7 @@ import Network
     // the bar above the programs offers "Restart now" (the user's call) and "Not now" (the change reaches games at Steam's next start).
     func requestSteamRestart(_ why: String) {
         let b = selected
-        guard programs.contains(where: { $0.hasSuffix("/Steam/steam.exe") }), steamRunning(in: b) else { return }
+        guard programs.contains(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }), steamRunning(in: b) else { return }
         if let busy = Model.steamBusy(b) {
             if pendingSteamRestart == nil { let m = "Steam will restart once it's idle (\(busy) now), so \(why).\n"; log += m; logToFile(m) }
             pendingSteamRestart = (b, why, busy)
@@ -135,7 +135,7 @@ import Network
         restartSteam(b, because: why)
     }
     func restartSteam(_ b: String, because why: String) {
-        guard let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
+        guard let s = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) else { return }
         let m = "Restarting Steam so \(why)…\n"; log += m; logToFile(m)
         Task { @MainActor in await stopSteam(b); launch(s) }
     }
@@ -150,7 +150,7 @@ import Network
     // Settings › "Start Steam together with Cosmopolitan" (default on), and AUTOSTART_STEAM=0 in a bottle opts that bottle out.
     func autostartAllowed() -> Bool { (UserDefaults.standard.object(forKey: "autostartSteam") == nil || UserDefaults.standard.bool(forKey: "autostartSteam")) && launchEnvRaw()["AUTOSTART_STEAM"] != "0" }
     func autostart() {   // a bottle with Steam gets Steam started with the app (AUTOSTART_STEAM=0 in cosmopolitan.env opts out)
-        guard !cliMode, autostartAllowed(), let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
+        guard !cliMode, autostartAllowed(), let s = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) else { return }
         launch(s)   // launch() skips it when Steam is already running
     }
     var watchers: [DispatchSourceFileSystemObject] = [], watchedBottle = "", rescanWork: DispatchWorkItem?
@@ -183,8 +183,9 @@ import Network
             watchControllers()   // item 33
             if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
         autostart()
-        // Pad on/off and driver folders change outside the app; re-check every 5 s (one ioreg call, ~30 ms).
-        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }
+        // Pad on/off and driver folders change outside the app; re-check every 5 s while the app is active (avoids background IOHIDManager polls while a game runs).
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard NSApp?.isActive != false else { return }; self?.updateStatus() } }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor() } }
     }
 

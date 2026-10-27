@@ -46,6 +46,7 @@ extension Model {
         if v.hasPrefix("d3dx9") || v.hasPrefix("d3dx10") || v.hasPrefix("d3dx11") || ["d3dcompiler_43", "xact", "xact_x64", "xinput", "directx9", "dxsdk_jun2010"].contains(v) { return [.directx] }
         return []
     }
+    nonisolated static let vcRedistDLLs = ["concrt140", "msvcp140", "msvcp140_1", "msvcp140_2", "msvcp140_atomic_wait", "msvcp140_codecvt_ids", "vcamp140", "vccorlib140", "vcomp140", "vcruntime140", "vcruntime140_1"]
     nonisolated static func runtimeMarker(_ prefix: String, _ r: Runtime) -> String { prefix + "/.runtime-" + r.rawValue }
     // Microsoft's file, not Wine's builtin stand-in (in every bottle's system folders): Wine stamps "Wine builtin DLL" at offset 64, in the DOS stub.
     nonisolated static func isMicrosoftDLL(_ path: String) -> Bool {
@@ -74,6 +75,13 @@ extension Model {
         // Installed = the runtime's DLL in the system folder is Microsoft's file, not Wine's builtin stand-in.
         let (dir, probe) = r == .vcredist64 ? ("system32", "msvcp140.dll") : r == .vcredist86 ? ("syswow64", "msvcp140.dll") : ("syswow64", "d3dx9_43.dll")
         let ok = isMicrosoftDLL("\(prefix)/drive_c/windows/\(dir)/\(probe)")
+        if ok, r == .vcredist86 || r == .vcredist64 {
+            // Wine defaults to its builtin CRT DLLs unless DllOverrides names them native,builtin (what winetricks vcrun2015–2022 writes).
+            let bottle = (prefix as NSString).lastPathComponent
+            for d in vcRedistDLLs where d != "vcruntime140_1" || r == .vcredist64 {
+                regSet(bottle, "HKCU\\Software\\Wine\\DllOverrides", d, "native,builtin", exe: "", owner: "bottle")
+            }
+        }
         if ok { try? "\(r.pin.version)\n".write(toFile: runtimeMarker(prefix, r), atomically: true, encoding: .utf8) }
         log(ok ? "✓ \(r.pin.name) installed (\(dir)\\\(probe) is Microsoft's).\n" : "✗ \(r.pin.name): the installer ran, but \(dir)\\\(probe) is still Wine's own.\n")
         return ok

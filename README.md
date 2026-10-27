@@ -1,5 +1,13 @@
 # Cosmopolitan
 
+<p align="center">
+  <a href="https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest"><img src="docs/promo/cosmopolitan-techno-1-door-4x5.png" width="32%" alt="Windows games get in. Your Mac is on the list — a one-click game launcher for macOS. In beta."></a>
+  <a href="https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest"><img src="docs/promo/cosmopolitan-techno-2-rules-4x5.png" width="32%" alt="No Windows. No terminal. No config. Just play. House rules for Windows games on your Mac."></a>
+  <a href="https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest"><img src="docs/promo/cosmopolitan-ad-5-gameplay-4x5.png" width="32%" alt="A Windows game, running on macOS — real gameplay, recorded on my Mac."></a>
+</p>
+
+<p align="center"><b><a href="https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest">⬇ Download Cosmopolitan for Mac</a></b> · free · Apple Silicon</p>
+
 Runs Windows games and programs on Apple Silicon Macs through Wine, with the graphics
 layers (DXMT, DXVK, D3DMetal), controllers, runtimes and community fixes handled
 automatically. Free, open, unnotarized.

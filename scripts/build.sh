@@ -21,12 +21,13 @@ strip -S Cosmopolitan.app/Contents/MacOS/Cosmopolitan 2>/dev/null   # app stays 
 PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest/download/appcast.xml}
 cp AppIcon.icns Cosmopolitan.app/Contents/Resources/  # built once from icon.png: sips -z … + iconutil -c icns
 cp TERMS.txt THIRD_PARTY_NOTICES.md README.md Cosmopolitan.app/Contents/Resources/   # shown on first run / referenced from the UI
+cp -R Resources/fonts Cosmopolitan.app/Contents/Resources/   # Instrument Sans (OFL), registered via ATSApplicationFontsPath below
 cp Resources/netprobe.exe Cosmopolitan.app/Contents/Resources/   # .NET probe run once per bottle (source: Resources/netprobe.cs)
 cat > Cosmopolitan.app/Contents/Info.plist <<P
 <?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>
 <key>CFBundleName</key><string>Cosmopolitan</string><key>CFBundleExecutable</key><string>Cosmopolitan</string>
 <key>CFBundleIdentifier</key><string>local.cosmopolitan</string><key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleIconFile</key><string>AppIcon</string><key>NSHighResolutionCapable</key><true/>
+<key>CFBundleIconFile</key><string>AppIcon</string><key>NSHighResolutionCapable</key><true/><key>ATSApplicationFontsPath</key><string>fonts</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
 <key>CFBundleShortVersionString</key><string>${COSMO_VERSION:-1.0}</string><key>CFBundleVersion</key><string>${COSMO_BUILD:-$(date +%Y%m%d%H%M)}</string>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>local.cosmopolitan</string><key>CFBundleURLSchemes</key><array><string>cosmopolitan</string></array></dict></array>

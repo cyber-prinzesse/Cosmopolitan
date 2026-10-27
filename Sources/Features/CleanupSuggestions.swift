@@ -20,7 +20,9 @@ extension Model {
             for id in ((try? fm.contentsOfDirectory(atPath: apps + "/shadercache")) ?? []) where Int(id) != nil && !fm.fileExists(atPath: "\(apps)/appmanifest_\(id).acf") {
                 add("Shader cache of a game that is no longer installed (Steam app \(id))", "\(apps)/shadercache/\(id)")
             }
-            for f in ((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(b)/installers")) ?? []) where !f.hasPrefix(".") { add("Leftover installer \(f)", "\(bottlesDir)/\(b)/installers/\(f)") }
+            for dir in ["\(bottlesDir)/\(b)/installers", "\(c)/installers"] {
+                for f in ((try? fm.contentsOfDirectory(atPath: dir)) ?? []) where !f.hasPrefix(".") { add("Leftover installer \(f)", "\(dir)/\(f)") }
+            }
             add("Windows temp files (\(b))", "\(c)/windows/temp")
             for u in ((try? fm.contentsOfDirectory(atPath: c + "/users")) ?? []) where !u.hasPrefix(".") { add("Temp files of Windows user \(u) (\(b))", "\(c)/users/\(u)/AppData/Local/Temp") }
         }

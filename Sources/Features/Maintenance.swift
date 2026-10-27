@@ -32,6 +32,7 @@ func cleanUp(bottles: [String]) -> String {
         clear("\(steam)/dumps", olderThanDays: 3)
         clear("\(steam)/logs", olderThanDays: 3) { $0.hasSuffix(".previous.txt") }
         clear("\(bottlesDir)/\(b)/installers", olderThanDays: 1)                       // store installers, once their client is in
+        clear("\(c)/installers", olderThanDays: 1)
         let staged = "\(c)/ProgramData/Epic/EpicGamesLauncher/Data/Update/Install"     // Epic's self-update, already moved into place
         if fm.fileExists(atPath: "\(c)/ProgramData/Epic/EpicGamesLauncher/Data/Launcher.manifest"), age(staged) > 86400 { remove(staged) }
     }

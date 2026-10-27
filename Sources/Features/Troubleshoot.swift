@@ -14,7 +14,10 @@ extension Model {
     }
     func regSection(_ file: String, _ key: String) -> String {
         let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(selected)/\(file)", encoding: .utf8)) ?? ""
-        return reg.components(separatedBy: "[\(key.replacingOccurrences(of: "\\", with: "\\\\"))]").dropFirst().first?.components(separatedBy: "\n[").first ?? ""
+        for k in [key, key.replacingOccurrences(of: "CurrentControlSet", with: "ControlSet001")] {
+            if let s = reg.components(separatedBy: "[\(k.replacingOccurrences(of: "\\", with: "\\\\"))]").dropFirst().first?.components(separatedBy: "\n[").first, !s.isEmpty { return s }
+        }
+        return ""
     }
     func troubleshoot() {
         var out = "── Troubleshooting ──\n"
