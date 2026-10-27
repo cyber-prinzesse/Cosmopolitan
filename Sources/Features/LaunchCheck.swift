@@ -128,7 +128,9 @@ extension Model {
         if let cdpr { n.args += ["--launcher-skip"] + (cdpr.flag.isEmpty ? [] : [cdpr.flag]); parts.append("starts \((cdpr.exe as NSString).lastPathComponent) without REDlauncher") }
         // Steam on a Wine 11 engine: its web helper's GPU process draws into steam.exe's window, which DXMT allows only when asked (with
         // GPU web views on and no GPU-off flags: Steam's sign-in window after 85 s; without it none in 600 s). Steam games inherit it.
-        if engineIsWine11(), name.lowercased() == "steam.exe" { n.env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1" }
+        // SteamSetup.exe too: its "Run Steam" starts steam.exe itself, which then inherits this; without it the sign-in window can't
+        // get a swap chain (SwapChain11::reset 0x80004005, eglCreateWindowSurface EGL_BAD_ALLOC) and Steam runs with no window.
+        if engineIsWine11(), ["steam.exe", "steamsetup.exe"].contains(name.lowercased()) { n.env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1" }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
         for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE"].contains(k) { n.env[k] = v }
