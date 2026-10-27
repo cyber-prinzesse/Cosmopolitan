@@ -205,12 +205,14 @@ struct ContentView: View {
                                 .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the newest 3 snapshots of each bottle. Runs by itself once a day.")
                             Menu("Shader caches") {
                                 Button("Show sizes") { m.shaderCacheReport() }
-                                Button("Pre-warm compiled shaders") { m.prewarmBottleShaders() }
-                                    .help("Syncs portable DXMT shaders_320.db caches into the bottle and pre-warms them through the local Metal GPU driver.")
+                                Button("Back up DXMT shaders now") { m.backupBottleShaders() }
+                                    .help("Saves each game's DXMT shaders_320.db into the bottle (this also happens when a game exits) and restores any macOS has purged.")
                                 Button("Import shared shader cache…") { m.importShaderCachePicker() }
-                                    .help("Merges a shared DXMT shaders_320.db file into this bottle and pre-warms the Metal GPU cache.")
+                                    .help("Merges a shared DXMT shaders_320.db into this bottle. Only a plain DXMT cache of Metal libraries is accepted; the game must be closed.")
                                 Divider()
                                 Button("Clear all (games recompile on next start)", role: .destructive) { m.clearShaderCaches() }
+                                    .help("Keeps the DXMT shaders saved in the bottle; they come back at the next start.")
+                                Button("Delete shaders saved in the bottle", role: .destructive) { m.clearSavedShaders() }
                             }.disabled(m.selected.isEmpty)
                         }.fixedSize()
                         Button("Bug report") { m.copyBugReport() }

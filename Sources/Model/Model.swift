@@ -185,6 +185,7 @@ import Network
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s while the app is active (avoids background IOHIDManager polls while a game runs).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard NSApp?.isActive != false else { return }; self?.updateStatus() } }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor() } }
     }
 

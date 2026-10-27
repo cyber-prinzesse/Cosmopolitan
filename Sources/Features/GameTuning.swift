@@ -27,7 +27,7 @@ extension Model {
     }
 
     // Steam overlay hooks the game's presentation and costs frames under translation; switch it off in Steam's config while Steam is down,
-    // and move GameOverlayRenderer(64).dll aside so modern Steam cannot inject it via full-path LoadLibraryW (which bypasses Wine DllOverrides).
+    // The overlay DLLs themselves stay: steamBottleTweaks() disables them through Wine DllOverrides, and Steam re-downloads (offline: refuses to start) when its files go missing.
     func tuneSteam() {
         let steamDir = "\(bottlesDir)/\(selected)/drive_c/Program Files (x86)/Steam", fm = FileManager.default
         let cfgs = (try? fm.contentsOfDirectory(atPath: "\(steamDir)/userdata")) ?? []
@@ -38,9 +38,9 @@ extension Model {
             try? s.write(toFile: p, atomically: true, encoding: .utf8)
             logToFile("Steam overlay switched off\n"); log += "Steam overlay switched off (costs frames under translation).\n"
         }
-        for dll in ["GameOverlayRenderer64.dll", "GameOverlayRenderer.dll"] where fm.fileExists(atPath: "\(steamDir)/\(dll)") {
-            try? fm.removeItem(atPath: "\(steamDir)/\(dll).disabled")
-            try? fm.moveItem(atPath: "\(steamDir)/\(dll)", toPath: "\(steamDir)/\(dll).disabled")
+        for dll in ["GameOverlayRenderer64.dll", "GameOverlayRenderer.dll"] where fm.fileExists(atPath: "\(steamDir)/\(dll).disabled") {   // undo the earlier rename
+            if fm.fileExists(atPath: "\(steamDir)/\(dll)") { try? fm.removeItem(atPath: "\(steamDir)/\(dll).disabled") }
+            else { try? fm.moveItem(atPath: "\(steamDir)/\(dll).disabled", toPath: "\(steamDir)/\(dll)") }
         }
     }
 
