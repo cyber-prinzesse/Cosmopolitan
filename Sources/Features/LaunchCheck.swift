@@ -65,7 +65,7 @@ extension Model {
         if !plan.apis.isEmpty { parts.append((plan.is32 ? "32-bit " : "64-bit ") + plan.why.joined(separator: ", ")) }
         else if let gfx = [("vulkan-1.dll", "Vulkan"), ("opengl32.dll", "OpenGL")].first(where: { imps.contains($0.0) }) { parts.append(gfx.1) }
         for api in plan.missing { parts.append("\(api) driver not installed for this build") }   // red light: it will not render
-        if batteryCapWanted(), plan.drivers.contains("d3dmetal") || (drivers == nil && plan.apis.contains("Direct3D 12")) {   // honest battery cap
+        if batteryCapWanted(), options(exe)["FULL_SPEED"] != "1", plan.drivers.contains("d3dmetal") || (drivers == nil && plan.apis.contains("Direct3D 12")) {   // honest battery cap
             parts.append(d3dmetalFrameCap() ? "battery: D3DMetal caps this game at 60 fps"
                          : "battery 60 fps cap: not available for this game (D3DMetal \(Model.d3dmetalInfo(driversDir + "/d3dmetal")?.pretty ?? "") has no frame limiter); use the game's own frame limit or vsync")
         }

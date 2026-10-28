@@ -42,6 +42,7 @@ extension Model {
     // Play: a game in another bottle selects that bottle first (every launch path works on the selected one).
     func play(_ p: String) {
         let b = bottleOf(p); if b != selected { selected = b; scan() }
+        freeMemoryBeforePlay()
         activity = "Starting \(appName(p))…"; launch(p)
     }
     // "Fix this game": a snapshot, Troubleshoot and Repair of its bottle (Repair takes the snapshot), then the game is checked again. A

@@ -28,6 +28,7 @@ extension Model {
     # PAUSE_IN_BACKGROUND=1         suspend the game while another app is in front (single-player only)
     # ROSETTA_ADVERTISE_AVX=0       force AVX off/on for this program (auto-detected otherwise)
     # D3DM_MAX_FPS=60               frame-rate cap (D3DMetal); DXMT_CONFIG=d3d11.preferredMaxFrameRate=60 for DXMT
+    # FULL_SPEED=1                  no cooler profile for this game (on battery, Low Power Mode, MacBook Air): no 60 fps cap, full resolution
     # CLOUD_SAVES=1                 mirror this program's save folders to iCloud Drive (non-Steam programs; Steam has Steam Cloud)
     # REPLAY=1                      rolling 30 s screen recording while playing: ⌃⌥⌘R saves the last clip, ⌃⌥⌘S a screenshot
     # WINEDLLOVERRIDES=xaudio2_7=n  any other KEY=VALUE becomes an environment variable

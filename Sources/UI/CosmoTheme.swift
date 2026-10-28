@@ -142,8 +142,6 @@ enum GameStatusKind { case ready, wontRun, starting, setting, offline }
 
 struct StatusTag: View {
     let kind: GameStatusKind, text: String
-    @State private var blink = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         HStack(spacing: Cosmo.Space.s) {
             switch kind {
@@ -152,11 +150,13 @@ struct StatusTag: View {
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(RoundedRectangle(cornerRadius: Cosmo.Radius.label).fill(Cosmo.textPrimary))   // inverted label
             default:
-                Rectangle().fill(kind == .ready ? Cosmo.textPrimary : Cosmo.textSecondary)
-                    .frame(width: 7, height: 7).opacity(kind == .starting && blink && !reduceMotion ? 0.2 : 1)
+                // "Starting" is an outlined square, not a blinking one: the repeatForever opacity animation never stopped (not even once
+                // the state changed) and redrew the tile's text every frame; an idle window sampled on 2026-10-28 used 14 % CPU, 64 % of
+                // its main thread in text redraws.
+                if kind == .starting { Rectangle().strokeBorder(Cosmo.textSecondary, lineWidth: 1.5).frame(width: 7, height: 7) }
+                else { Rectangle().fill(kind == .ready ? Cosmo.textPrimary : Cosmo.textSecondary).frame(width: 7, height: 7) }
                 Text(text).font(Cosmo.caption).foregroundStyle(kind == .offline ? Cosmo.textTertiary : Cosmo.textSecondary)
             }
         }
-        .onAppear { if kind == .starting && !reduceMotion { withAnimation(.easeInOut(duration: 0.5).repeatForever()) { blink = true } } }
     }
 }
