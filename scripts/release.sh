@@ -5,6 +5,10 @@
 set -e; cd "$(dirname "$0")/.."
 export COSMO_VERSION=${COSMO_VERSION:-1.0}; export COSMO_BUILD=${COSMO_BUILD:-$(date +%Y%m%d%H%M)}
 scripts/build.sh
+# The binary must run on the oldest macOS the app declares (LSMinimumSystemVersion, from MIN in build.sh). 1.3.2 was built on macOS 27
+# without a deployment target, came out minos 27.0 and wouldn't open on 26 (Tahoe); such a build is never released.
+MINOS=$(vtool -show-build Cosmopolitan.app/Contents/MacOS/Cosmopolitan | awk '/minos/{print $2; exit}'); LSMIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Cosmopolitan.app/Contents/Info.plist 2>/dev/null || true)
+[ -n "$MINOS" ] && [ "$MINOS" = "$LSMIN" ] || { echo "Cosmopolitan.app needs macOS ${MINOS:-?} but declares ${LSMIN:-nothing}: not releasing (see MIN in scripts/build.sh)"; exit 1; }
 mkdir -p dist; rm -f "dist/Cosmopolitan-$COSMO_VERSION.zip" "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip"
 ditto -c -k --sequesterRsrc --keepParent Cosmopolitan.app "dist/Cosmopolitan-$COSMO_VERSION.zip"
 # Debug symbols: separate archive, same version. Symbolicate a crash report with:
