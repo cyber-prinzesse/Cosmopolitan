@@ -55,9 +55,10 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
             print("RESULT: " + r) }
         case "--procs": if i + 2 < a.count { m.log += "pids containing \"\(a[i + 2])\": \(procFind(a[i + 2]))  steamRunning: \(m.steamRunning())  controllers: \(nativeControllers())  battery: \(onBattery())\n" }
         case "--padmode": if i + 2 < a.count { let changed = m.ensureControllerMode(for: a[i + 2]); m.log += "changed: \(changed); hidraw disabled now: \(m.hidrawDisabled())\n" }
-        case "--uslayout":   // test: switch to US for 3 s, then restore
-            let before = Model.currentLayoutID(); m.log += "before: \(before)\n"
-            m.log += "select US: \(Model.selectLayout("com.apple.keylayout.US")) → now \(Model.currentLayoutID())\n"
+        case "--uslayout":   // test: switch to the game layout picked from the enabled ones for 3 s, then restore
+            let before = Model.currentLayoutID(); m.log += "before: \(before)  enabled: \(Model.enabledLayoutIDs())\n"
+            let target = Model.gameLayout(current: before) ?? "none"
+            m.log += "select \(target): \(Model.selectLayout(target)) → now \(Model.currentLayoutID())\n"
             Thread.sleep(forTimeInterval: 3); Model.selectLayout(before); m.log += "restored: \(Model.currentLayoutID())\n"
         case "--volumes": m.log += (m.externalVolumes().isEmpty ? "no writable external volumes" : m.externalVolumes().joined(separator: "\n")) + "\n"
         case "--offlineexe": if i + 2 < a.count { m.log += (m.offlineExe(a[i + 2]) ?? "no offline launcher found") + "\n" }
