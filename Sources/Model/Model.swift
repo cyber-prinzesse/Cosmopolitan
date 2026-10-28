@@ -196,10 +196,9 @@ import Network
     func refresh() {
         linkSharedBottles()
         let all = (try? FileManager.default.contentsOfDirectory(atPath: bottlesDir)) ?? []
-        // Safety clones made before Repair (.auto-<bottle>-<date>) stay hidden and are dropped after 30 days.
-        for b in all where b.hasPrefix(".auto-") {
-            if let m = (try? FileManager.default.attributesOfItem(atPath: "\(bottlesDir)/\(b)"))?[.modificationDate] as? Date, Date().timeIntervalSince(m) > 30 * 86400 { try? FileManager.default.removeItem(atPath: "\(bottlesDir)/\(b)") }
-        }
+        // Safety clones made before risky changes (.auto-<bottle>-<stamp>) stay hidden and go after 3 days (Snapshots.swift), deleted in
+        // the background: a game bottle's clone is tens of thousands of files, too many to remove on the main thread.
+        let expired = Model.expiredSnapshots(all); if !expired.isEmpty { Model.discardSnapshots(expired) }
         bottles = all.filter { !$0.hasPrefix(".") }.sorted()
         if !bottles.contains(selected) { selected = bottles.first ?? "" }
         scan()
