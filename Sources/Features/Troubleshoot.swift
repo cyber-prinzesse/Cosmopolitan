@@ -12,12 +12,20 @@ extension Model {
         var path = [CChar](repeating: 0, count: 4096)   // PROC_PIDPATHINFO_MAXSIZE; not `ps`: it's setuid, and a sandboxed process may not exec it
         return (pid, proc_pidpath(pid, &path, UInt32(path.count)) > 0 ? String(cString: path) : "")
     }
+    // A bottle's system.reg runs to megabytes (4 MB with Steam) and the status refresh asks it for one section every 5 s: the file is read
+    // and split only when its modification date or size changed; otherwise the section comes from this cache.
+    private static var regCache: [String: (stamp: String, section: String)] = [:]
     func regSection(_ file: String, _ key: String) -> String {
-        let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(selected)/\(file)", encoding: .utf8)) ?? ""
+        let path = "\(bottlesDir)/\(selected)/\(file)", a = try? FileManager.default.attributesOfItem(atPath: path)
+        let stamp = "\((a?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)/\(a?[.size] as? Int ?? -1)"
+        if let c = Model.regCache[path + "|" + key], c.stamp == stamp { return c.section }
+        let reg = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        var found = ""
         for k in [key, key.replacingOccurrences(of: "CurrentControlSet", with: "ControlSet001")] {
-            if let s = reg.components(separatedBy: "[\(k.replacingOccurrences(of: "\\", with: "\\\\"))]").dropFirst().first?.components(separatedBy: "\n[").first, !s.isEmpty { return s }
+            if let s = reg.components(separatedBy: "[\(k.replacingOccurrences(of: "\\", with: "\\\\"))]").dropFirst().first?.components(separatedBy: "\n[").first, !s.isEmpty { found = s; break }
         }
-        return ""
+        Model.regCache[path + "|" + key] = (stamp, found)
+        return found
     }
     func troubleshoot() {
         var out = "── Troubleshooting ──\n"

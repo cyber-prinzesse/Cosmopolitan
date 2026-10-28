@@ -19,24 +19,27 @@ import Network
     var loading = false
     // green = will work, yellow = will work with a caveat / nothing to test right now, red = broken until fixed.
     func updateStatus() {
-        guard !selected.isEmpty else { driverStatus = (.gray, "no bottle"); padStatus = (.gray, "no bottle"); return }
+        // Assigned only when changed: every @Published assignment redraws all views watching the model, and this runs every 5 s.
+        var d: (Color, String), p: (Color, String)
+        defer { if d != driverStatus { driverStatus = d }; if p != padStatus { padStatus = p } }
+        guard !selected.isEmpty else { d = (.gray, "no bottle"); p = (.gray, "no bottle"); return }
         let list = driverList(launchEnvRaw(), bottle: selected), fm = FileManager.default
         let missing = list.filter { !fm.fileExists(atPath: "\(driversDir)/\($0)/wine") }
         let d3d11 = list.filter { ["dxmt", "dxvk", "dxvk3", "d3dmetal"].contains($0) }
         let icdFile = launchEnv(selected)["VK_DRIVER_FILES"] ?? ""
         let icdLib = ((try? String(contentsOfFile: icdFile, encoding: .utf8)) ?? "").components(separatedBy: "\"library_path\":\"").dropFirst().first?.components(separatedBy: "\"").first ?? ""
         let icd = fm.fileExists(atPath: icdLib)   // the json must exist AND point at a real libMVK.dylib
-        if !engineOK { driverStatus = (.red, "Wine engine missing") }
-        else if !missing.isEmpty { driverStatus = (.red, "missing: " + missing.joined(separator: ", ")) }
-        else if !icd { driverStatus = (.red, "MoltenVK ICD missing (no Vulkan)") }
-        else if d3d11.count > 1 { driverStatus = (.yellow, "conflict: " + d3d11.joined(separator: " + ") + " — keep one") }
-        else if d3d11.isEmpty { driverStatus = (.yellow, "no Direct3D 10/11 driver enabled") }
-        else { driverStatus = (.green, list.joined(separator: " + ")) }
+        if !engineOK { d = (.red, "Wine engine missing") }
+        else if !missing.isEmpty { d = (.red, "missing: " + missing.joined(separator: ", ")) }
+        else if !icd { d = (.red, "MoltenVK ICD missing (no Vulkan)") }
+        else if d3d11.count > 1 { d = (.yellow, "conflict: " + d3d11.joined(separator: " + ") + " — keep one") }
+        else if d3d11.isEmpty { d = (.yellow, "no Direct3D 10/11 driver enabled") }
+        else { d = (.green, list.joined(separator: " + ")) }
         let bus = regSection("system.reg", "System\\CurrentControlSet\\Services\\winebus")
         let pads = nativeControllers().joined(separator: ", ")   // IOKit HID, no shell
-        if !bus.contains("\"DisableHidraw\"=dword:00000001") || bus.contains("\"Enable SDL\"=dword:00000000") { padStatus = (.red, "bottle not set for SDL pads → Repair") }
-        else if pads.isEmpty { padStatus = (.yellow, "bottle ready, no controller switched on") }
-        else { padStatus = (.green, pads) }
+        if !bus.contains("\"DisableHidraw\"=dword:00000001") || bus.contains("\"Enable SDL\"=dword:00000000") { p = (.red, "bottle not set for SDL pads → Repair") }
+        else if pads.isEmpty { p = (.yellow, "bottle ready, no controller switched on") }
+        else { p = (.green, pads) }
     }
     func setDriver(_ d: String, _ on: Bool) {
         if on { drivers.insert(d) } else { drivers.remove(d) }
@@ -55,6 +58,7 @@ import Network
     @Published var driverUpdates = ""   // "dxmt v0.81 available" — filled by the weekly check, applied by Update…
     @Published var readiness: [String: Needs] = [:]   // per-program pre-verification (tile light + tooltip)
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
+    var steamLoopWarned: [String: Date] = [:]          // Steam window-loop warning, per bottle (rate limit)
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
     @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)
@@ -186,7 +190,7 @@ import Network
         // Pad on/off and driver folders change outside the app; re-check every 5 s while the app is active (avoids background IOHIDManager polls while a game runs).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard NSApp?.isActive != false else { return }; self?.updateStatus() } }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
-        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor() } }
+        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor(); self?.steamLoopCheck() } }
     }
 
     func refresh() {
@@ -244,12 +248,13 @@ import Network
     // Installed programs = non-helper .exe files directly inside each app folder under Program Files.
     func scan() {
         loadSettings()
-        programs = []
-        guard !selected.isEmpty else { library = []; return }
-        programs = programsIn(selected)
+        // Published only when they changed: the folder watcher rescans while Steam writes, and each publish redraws the whole grid.
+        guard !selected.isEmpty else { if !programs.isEmpty { programs = [] }; if !library.isEmpty { library = [] }; return }
+        let p = programsIn(selected); if p != programs { programs = p }
         // The Library shows every bottle's games in one grid (item 39); the launch check works per game, whatever bottle is selected.
-        library = (bottles.filter { $0 != selected && FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }.flatMap { programsIn($0) } + programs)
+        let l = (bottles.filter { $0 != selected && FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }.flatMap { programsIn($0) } + programs)
             .sorted { appName($0).lowercased() < appName($1).lowercased() }
+        if l != library { library = l }
         verifyAll(); fetchArt(); if !cliMode { syncLaunchers() }   // item 37: a Dock/Launchpad entry per game
         if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
         for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }
@@ -263,8 +268,9 @@ import Network
             guard let apps = try? FileManager.default.contentsOfDirectory(atPath: "\(c)/\(root)") else { continue }
             for app in apps where !app.hasPrefix(".") && !["Common Files", "Internet Explorer", "Windows NT", "Windows Media Player", "Windows Defender", "Microsoft", "Wine", "WindowsApps", "GOG Galaxy"].contains(app) {   // Galaxy's Windows client stays blank under Wine on macOS; the Stores menu offers GOG's Mac client instead
                 let base = "\(c)/\(root)/\(app)"
-                let items = (try? FileManager.default.subpathsOfDirectory(atPath: base)) ?? []
-                for i in items where i.lowercased().hasSuffix(".exe") && i.split(separator: "/").count == 1 {
+                // Top level only: a full walk here took in Steam's whole steamapps/common (every installed game) on each rescan.
+                let items = (try? FileManager.default.contentsOfDirectory(atPath: base)) ?? []
+                for i in items where i.lowercased().hasSuffix(".exe") {
                     let n = (i as NSString).lastPathComponent.lowercased()
                     if !skipExes.contains(where: { n.contains($0) }) { found.append("\(base)/\(i)") }
                 }
