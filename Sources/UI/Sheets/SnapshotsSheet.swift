@@ -6,7 +6,7 @@ extension ContentView {
             let snaps = m.snapshots()
             VStack(alignment: .leading, spacing: 8) {
                 Text("Snapshots of \(m.selected)").font(.headline)
-                Text("APFS clones of the whole bottle, made in about a second; they share the bottle's data until it changes. The newest 3 are kept. Rolling back stops only this bottle's programs, swaps the bottle for the snapshot and keeps the current state as a snapshot too.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text("APFS clones of the whole bottle, made in about a second; they share the bottle's data until it changes. The newest 3 are kept, for 3 days. Rolling back stops only this bottle's programs, swaps the bottle for the snapshot and keeps the current state as a snapshot too.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if snaps.isEmpty { Text("No snapshots yet. One is taken automatically before Repair, driver switches, registry clean-ups, Windows-version changes, installs and access changes; Backup makes one on demand.").font(.callout) }
                 else { Text(snapUse.map { "Disk use: about \(ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)) held only by these snapshots (data the bottle has changed or deleted since)." } ?? "Disk use: measuring…").font(.caption) }
                 ScrollView { VStack(alignment: .leading, spacing: 4) { ForEach(snaps, id: \.path) { s in

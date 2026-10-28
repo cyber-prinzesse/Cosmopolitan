@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Item 26: a snapshot is a clonefile copy of the whole bottle (APFS private size 0: every block shared with the bottle until it changes),
-# taken before Repair, a driver switch, a registry sweep and a Windows-version change. The newest 3 are kept and another bottle's are
+# taken before Repair, a driver switch, a registry sweep and a Windows-version change. The newest 3 are kept, for 3 days, and another bottle's are
 # never touched (not even "S-2" next to "S"). Disk use counts what only the snapshots hold. Rollback restores the bottle, keeps the state
 # before it as a snapshot, and stops only that bottle's programs (another bottle's Wine and a Mac process named *.exe keep running).
 source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
@@ -59,7 +59,7 @@ grep -q '^DRIVERS=' "$(tprefix S)/options/stress-d3d11-64.exe.env" 2>/dev/null |
 expect_new "$was" "a driver switch (bisect)" "before driver switch: * → *"
 [[ -d "$TS/bottles/$theirs" && "$(snaps S-2)" == "$theirs" ]] || fail "S-2's snapshot was touched: $(snaps S-2 | tr '\n' ' ')"
 print "ok: S kept its newest 3 ($(snaps S | tr '\n' ' ')); S-2's own snapshot $theirs untouched"
-keep=$(snaps S | tr '\n' ' '); for o in 20200101-000000 20200101-000001; do cp -cR "$(tprefix S)" "$TS/bottles/.auto-S-$o"; done
+keep=$(snaps S | tr '\n' ' '); for o in $(date -v-1d +%Y%m%d-%H%M%S) $(date -v-1d -v-1S +%Y%m%d-%H%M%S); do cp -cR "$(tprefix S)" "$TS/bottles/.auto-S-$o"; done
 ct --cleanup >/dev/null 2>&1   # the daily housekeeping: it used to keep the newest 2 of all bottles together
 [[ "$(snaps S | tr '\n' ' ')" == "$keep" && "$(snaps S-2)" == "$theirs" ]] || fail "daily cleanup: S has $(snaps S | tr '\n' ' '), S-2 has $(snaps S-2)"
 print "ok: daily cleanup removed S's two planted older snapshots, kept S's newest 3 and S-2's own"
@@ -84,5 +84,12 @@ print "ok: rollback to $tgt restored the bottle (state A); the state before is s
 print "  log: $(grep -m1 'Rolled back' "$T/rb.out")"
 leftover=("$TS"/bottles/.deleting-*(N)); print "  pruned snapshots still being deleted in the background: ${#leftover}"
 kill "$decoy" 2>/dev/null
+
+# 4. Expiry: a snapshot older than 3 days goes at startup whatever the count (S-2 has only its own); the age is the stamp in the name.
+old=.auto-S-2-$(date -v-4d +%Y%m%d-%H%M%S) recent=.auto-S-2-$(date -v-2d +%Y%m%d-%H%M%S)
+for n in $old $recent; do cp -cR "$(tprefix S-2)" "$TS/bottles/$n"; done
+ct --snapshots S-2 >/dev/null 2>&1
+[[ ! -e "$TS/bottles/$old" && -d "$TS/bottles/$recent" && -d "$TS/bottles/$theirs" ]] || fail "expiry: S-2 has $(snaps S-2 | tr '\n' ' ')"
+print "ok: the 4-day-old snapshot $old expired at startup; the 2-day-old one and S-2's own stay"
 tw_check || fail "your real data changed"
 print "PASS snapshots"
