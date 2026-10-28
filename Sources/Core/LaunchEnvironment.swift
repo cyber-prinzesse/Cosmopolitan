@@ -11,7 +11,7 @@ func bottleDriverDir(_ bottle: String, _ d: String) -> String {
     return link
 }
 // Environment a bottle's programs are launched with (also used by Dock shortcuts).
-func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {   // drivers: per-launch override of the bottle's DRIVERS
+func launchEnv(_ bottle: String, drivers: [String]? = nil, fullSpeed: Bool = false) -> [String: String] {   // drivers: per-launch override of the bottle's DRIVERS
     // Every Wine run in a bottle (launches and reg/winecfg helpers alike) builds this environment first, so a stale prefix is updated
     // here, without driver slots; otherwise Wine's own automatic update runs inside the first command and copies the drivers in.
     updatePrefixIfStale("\(bottlesDir)/\(bottle)")
@@ -36,9 +36,10 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // it was the real cause of the Dawnwalker lag; FSR in the game menu is the right upscaler under D3DMetal.)
     if e["WINEMSYNC"] == nil { e["WINEMSYNC"] = "1" }
     // On battery, in Low Power Mode or thermally throttled (§7.8, item 32): 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales.
-    // Off again when plugged in, Low Power Mode off and cool.
+    // Off again when plugged in, Low Power Mode off and cool; always on for a fanless Mac (Power.swift).
     // D3DM_MAX_FPS only where the installed D3DMetal documents it (4.0 beta); 3.0 ignores it, and the launch check says the cap isn't available.
-    if e["D3DM_MAX_FPS"] == nil, batteryCapWanted() {
+    // FULL_SPEED=1 in a game's options (`fullSpeed`) or the bottle's: never this profile there (a light game that stays cool anyway).
+    if e["D3DM_MAX_FPS"] == nil, !fullSpeed, e["FULL_SPEED"] != "1", batteryCapWanted() {
         if d3dmetalFrameCap() { e["D3DM_MAX_FPS"] = "60" }
         e["DXMT_CONFIG"] = "d3d11.preferredMaxFrameRate=60;d3d11.metalSpatialUpscaleFactor=1.5"
     }

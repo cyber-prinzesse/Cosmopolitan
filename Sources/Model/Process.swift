@@ -38,6 +38,6 @@ extension Model {
 
     func wine(_ bottle: String, _ args: [String], block: Bool = true, env: [String: String] = [:], drivers: [String]? = nil, exe: String? = nil, then: (@MainActor () -> Void)? = nil) {
         guard engineOK else { log += "Wine engine missing.\n"; return }
-        exec(exe.map(loaderNamed) ?? wineBin, args, env: launchEnv(bottle, drivers: drivers).merging(env) { $1 }, block: block, exe: exe, then: then)
+        exec(exe.map(loaderNamed) ?? wineBin, args, env: launchEnv(bottle, drivers: drivers, fullSpeed: env["FULL_SPEED"] == "1").merging(env) { $1 }, block: block, exe: exe, then: then)
     }
 }
