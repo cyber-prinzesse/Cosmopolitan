@@ -21,7 +21,7 @@ extension Model {
     # DRIVERS=dxmt,d9vk             driver set for this program (overrides Auto)
     # LANG=ja_JP.UTF-8              run in another locale; ja/zh/ko also install matching fonts
     # MOUSE_CAPTURE=1               keep the cursor inside the game window (camera-heavy games)
-    # US_KEYBOARD=1                 switch macOS to the US layout while this game runs (automatic for Cyrillic & other non-Latin layouts; 0 = never)
+    # US_KEYBOARD=1                 switch to a QWERTY Latin layout you already have enabled while this game runs (default; 0 = never)
     # DUALSENSE=native              give this game the real DualSense (adaptive triggers, haptics, touchpad) instead of an Xbox-style pad;
     #                               only for games with PC DualSense support — others then lose XInput. Steam restarts when the mode flips.
     # FOCUS_SHORTCUT=Gaming         run this macOS Shortcut when the game starts and when it exits
