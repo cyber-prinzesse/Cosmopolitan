@@ -15,6 +15,8 @@ func appRoot(_ p: String) -> (root: String, name: String) {
     }
     if let i = hit { return (parts[0...i + 1].joined(separator: "/"), parts[i + 1]) }
     let dir = (p as NSString).deletingLastPathComponent
+    // Store installers are staged together in a bottle's installers folder: each goes by its own name (SteamSetup), not "installers".
+    if (dir as NSString).lastPathComponent == "installers" { return (dir, ((p as NSString).lastPathComponent as NSString).deletingPathExtension) }
     return (dir, (dir as NSString).lastPathComponent)
 }
 func dedupe(_ found: [String]) -> [String] {
