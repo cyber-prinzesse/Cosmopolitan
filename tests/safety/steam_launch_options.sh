@@ -39,6 +39,7 @@ ${extra}					}
 	}
 	"system"
 	{
+		"EnableGameOverlay"		"0"
 	}
 }
 VDF
@@ -47,6 +48,24 @@ mkcfg "$ST/userdata/111/config/localconfig.vdf"
 mkcfg "$ST/userdata/222/config/localconfig.vdf"
 
 opts() { python3 -I -c 'import re,sys; t=open(sys.argv[1],encoding="utf-8").read(); m=re.search(r"\"LaunchOptions\"\s*\"([^\"]*)\"", t); print(m.group(1) if m else "")' "$1"; }
+# LaunchOptions must be its own indented line inside the app block (after "{" or after the last key), never glued to "{" and with no blank line after it.
+fmt_ok() {
+  python3 -I -c '
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"\"292030\"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", t, re.S)
+if not m: sys.exit(1)
+body = m.group(1)
+if body.startswith("\t") or body.startswith(" "): sys.exit(2)   # glued to "{"
+lines = body.split("\n")
+# first line after "{" is empty (the \n that follows {); content lines follow
+content = [ln for ln in lines[1:] if True]
+lo = next((i for i, ln in enumerate(content) if re.match(r"^\t+\"LaunchOptions\"\t\t\"[^\"]*\"$", ln)), None)
+if lo is None: sys.exit(3)
+if lo + 1 < len(content) and content[lo + 1] == "": sys.exit(4)   # blank line after LaunchOptions
+print("ok")
+' "$1"
+}
 
 # 1. Sync while Steam is down → both accounts get Cosmopolitan's CDPR args.
 out=$(ct --tunesteam S 2>&1)
@@ -54,7 +73,9 @@ o1=$(opts "$ST/userdata/111/config/localconfig.vdf"); o2=$(opts "$ST/userdata/22
 [[ "$o1" == "--launcher-skip -dx12" && "$o2" == "--launcher-skip -dx12" ]] || fail "after tunesteam: 111='$o1' 222='$o2'"
 [[ -f "$(tprefix S)/options/.steamlaunch-292030" && "$(cat "$(tprefix S)/options/.steamlaunch-292030")" == "--launcher-skip -dx12" ]] || fail "sidecar missing or wrong"
 [[ -f "$ST/userdata/111/config/localconfig.vdf.bak" ]] || fail "no .bak on first write"
-print -r -- "ok: both userdata accounts got LaunchOptions '--launcher-skip -dx12'; sidecar remembered"
+fmt_ok "$ST/userdata/111/config/localconfig.vdf" >/dev/null || fail "LaunchOptions formatting wrong in 111: $(cat -A "$ST/userdata/111/config/localconfig.vdf" | head -40)"
+fmt_ok "$ST/userdata/222/config/localconfig.vdf" >/dev/null || fail "LaunchOptions formatting wrong in 222"
+print -r -- "ok: both userdata accounts got LaunchOptions '--launcher-skip -dx12'; sidecar remembered; line formatting clean"
 
 # 2. User's own LaunchOptions stay untouched; Cosmopolitan logs once.
 mkcfg "$ST/userdata/111/config/localconfig.vdf" $'\t\t\t\t\t\t"LaunchOptions"\t\t"-skipintro"\n'
@@ -86,6 +107,18 @@ after=$(shasum -a 256 "$ST/userdata/111/config/localconfig.vdf" | cut -c1-16)
 [[ "$before" == "$after" ]] || fail "wrote localconfig while Steam was 'running'"
 [[ "$(opts "$ST/userdata/111/config/localconfig.vdf")" == "--launcher-skip -dx12 -windowed" ]] || fail "LaunchOptions changed under steam-running hook"
 print -r -- "ok: COSMO_TEST_STEAM_RUNNING=1 → localconfig untouched"
+
+# 5. LaunchOptions already equals Cosmopolitan's desired value (user typed it): adopt sidecar, no "not applied" log, VDF unchanged.
+rm -f "$(tprefix S)/options/REDprelauncher.exe.env" "$(tprefix S)/options/.steamlaunch-292030"
+mkcfg "$ST/userdata/111/config/localconfig.vdf" $'\t\t\t\t\t\t"LaunchOptions"\t\t"--launcher-skip -dx12"\n'
+mkcfg "$ST/userdata/222/config/localconfig.vdf" $'\t\t\t\t\t\t"LaunchOptions"\t\t"--launcher-skip -dx12"\n'
+before=$(shasum -a 256 "$ST/userdata/111/config/localconfig.vdf" | cut -c1-16)
+out=$(ct --tunesteam S 2>&1)
+after=$(shasum -a 256 "$ST/userdata/111/config/localconfig.vdf" | cut -c1-16)
+[[ "$before" == "$after" ]] || fail "rewrote VDF when LaunchOptions already matched desired"
+[[ "$(cat "$(tprefix S)/options/.steamlaunch-292030")" == "--launcher-skip -dx12" ]] || fail "sidecar not adopted for already-equal LaunchOptions"
+print -r -- "$out" | grep -q "Steam has your own launch options" && fail "logged 'not applied' for already-equal value: $out"
+print -r -- "ok: already-equal LaunchOptions adopted into sidecar; no 'not applied' log; VDF untouched"
 
 tw_check || fail "your real data changed"
 print "PASS steam_launch_options"

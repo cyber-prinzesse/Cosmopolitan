@@ -48,6 +48,14 @@ extension Model {
                 let p = "\(steamDir)/userdata/\(u)/config/localconfig.vdf"
                 guard var s = try? String(contentsOfFile: p, encoding: .utf8) else { continue }
                 let cur = Model.vdfLaunchOptions(s, appid: appid)
+                // Already equals what we'd write (user typed the same string): adopt via sidecar, leave the VDF alone.
+                if let cur, !desired.isEmpty, cur == desired {
+                    if last != desired {
+                        try? desired.write(toFile: side, atomically: true, encoding: .utf8)
+                        wroteSide = true
+                    }
+                    continue
+                }
                 // Non-empty and not exactly what we wrote last time → the user's own text; leave it.
                 if let cur, !cur.isEmpty, cur != last {
                     let key = "\(bottle)/\(appid)"
@@ -189,9 +197,12 @@ extension Model {
             s.replaceSubrange(start..<end, with: vdfEscape(value))
             return true
         }
+        // Insert on its own line after the newline that follows `{`, not glued to `{` (that left a blank line before the next key).
+        var at = range.lowerBound
+        if at < range.upperBound, s[at] == "\n" { at = s.index(after: at) }
         let indent = vdfChildIndent(s, in: range) ?? "\t\t\t\t\t\t"
         let line = "\(indent)\"\(key)\"\t\t\"\(vdfEscape(value))\"\n"
-        s.insert(contentsOf: line, at: range.lowerBound)
+        s.insert(contentsOf: line, at: at)
         return true
     }
 
