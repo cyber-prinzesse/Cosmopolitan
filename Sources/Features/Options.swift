@@ -14,6 +14,7 @@ extension Model {
         try? FileManager.default.createDirectory(atPath: (optionsPath(exe) as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         try? text.write(toFile: optionsPath(exe), atomically: true, encoding: .utf8)
         readiness[exe] = launchNeeds(exe)
+        if steamGames[exe] != nil { syncSteamLaunchOptions(for: exe) }   // keep Steam's LaunchOptions in step when ARGS (etc.) change
     }
     static let optionsTemplate = """
     # One setting per line. Lines starting with # are ignored.
