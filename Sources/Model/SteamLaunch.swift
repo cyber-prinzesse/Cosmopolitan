@@ -151,12 +151,23 @@ extension Model {
     }
 
     // Track running → not running per bottle; after Steam exits, wait for localconfig settle then sync LaunchOptions (covers any Steam starter).
+    // User quit (not Cosmopolitan's own stopSteam): cancel a pending idle-restart and bump steamRestartEpoch so an in-flight restartSteam
+    // does not bring Steam back — that was Shutdown → Startup 7–10 s later with Cosmopolitan's -cef-* / -no-cef-sandbox flags.
     func noteSteamRunningState() {
         for b in bottles {
             let up = steamRunning(in: b)
             let was = steamSeenRunning[b] ?? false
             steamSeenRunning[b] = up
-            if was && !up { scheduleSteamLaunchSync(b) }
+            if was && !up {
+                if !steamStopOwned.contains(b) {
+                    steamRestartEpoch[b] = (steamRestartEpoch[b] ?? 0) + 1
+                    if pendingSteamRestart?.bottle == b {
+                        pendingSteamRestart = nil
+                        let msg = "Steam quit: cancelled a pending restart so it stays down.\n"; log += msg; logToFile(msg)
+                    }
+                }
+                scheduleSteamLaunchSync(b)
+            }
         }
     }
 

@@ -101,7 +101,8 @@ extension Model {
         let (cmd, args) = launchCmd(exe)
         log += powerHints()
         // Drop a leftover driver-fallback pin on steam.exe before prepare reads Options: games inherit Steam's env, so DXVK there breaks DX12.
-        if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe) }
+        // steamBottleTweaks: clear Wine Systray Hidden (templates set it) so window-close can minimize instead of reopening forever.
+        if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe); steamBottleTweaks() }
         var need = prepare(exe)
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
         launchedDrivers[exe] = need.drivers ?? driverList(launchEnvRaw(bottleOf(exe)), bottle: bottleOf(exe))

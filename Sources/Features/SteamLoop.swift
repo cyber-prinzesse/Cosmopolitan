@@ -12,11 +12,33 @@ extension Model {
             return d
         }
     }
+    // Last Shutdown / Startup timestamps in Steam's bootstrap_log.txt (Wine local time). A deliberate Exit writes Shutdown; Cosmopolitan
+    // must not treat the webhelper noise around that as a "window loop" or offer to restart Steam.
+    nonisolated static func bootstrapSteamEvents(_ text: String) -> (lastShutdown: Date?, lastStartup: Date?) {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        var lastDown: Date?, lastUp: Date?
+        for l in text.components(separatedBy: "\n") where l.hasPrefix("[") {
+            guard let e = l.firstIndex(of: "]"), let d = f.date(from: String(l[l.index(after: l.startIndex)..<e])) else { continue }
+            if l.contains("] Shutdown") { lastDown = d }
+            if l.contains("] Startup - Steam Client launched") { lastUp = d }
+        }
+        return (lastDown, lastUp)
+    }
+    // True when Steam's own log shows a Shutdown that is not already followed by a newer Startup (user Exit / force-quit in progress or done).
+    nonisolated static func steamDeliberateQuitInLog(_ bootstrap: String, now: Date = Date(), within: TimeInterval = 120) -> Bool {
+        let e = bootstrapSteamEvents(bootstrap)
+        guard let down = e.lastShutdown, now.timeIntervalSince(down) <= within else { return false }
+        if let up = e.lastStartup, up >= down { return false }
+        return true
+    }
     // Said once per loop (then quiet for 10 min per bottle): a warning with the memory state, a crash record with webhelper.txt's tail
     // for the bug report, and, for the selected bottle's running Steam, the offer to restart it. `force`: no rate limit (--steamloop).
     func steamLoopCheck(force: Bool = false) {
         for b in bottles {
             let dir = "\(bottlesDir)/\(b)/drive_c/Program Files (x86)/Steam", path = dir + "/logs/webhelper.txt"
+            let boot = (try? String(contentsOfFile: dir + "/logs/bootstrap_log.txt", encoding: .utf8)) ?? ""
+            // Deliberate quit: webhelper may thrash while Steam exits — never count that as a loop or relaunch Steam.
+            if Model.steamDeliberateQuitInLog(boot) { continue }
             guard let m = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 120,
                   force || Date().timeIntervalSince(steamLoopWarned[b] ?? .distantPast) > 600, let h = FileHandle(forReadingAtPath: path) else { continue }
             let end = h.seekToEndOfFile(); h.seek(toFileOffset: end > 65536 ? end - 65536 : 0)   // the log grows all session; the tail is enough

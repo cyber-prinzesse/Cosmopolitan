@@ -114,6 +114,8 @@ extension Model {
 
     // Steam under Wine: its web helper must stay on Wine's own Direct3D (DXMT's dxgi crashes it), Steam Input must not grab the pad
     // (its XInput hooks don't work under Wine, so XInput is disabled for steam.exe only), and 96 DPI keeps its window a normal size.
+    // Systray must be on: Steam's window-close minimizes to the tray on Windows; with Wine's tray Hidden (Sikarugir/CrossOver
+    // templates set this), the window has nowhere to go and keeps reopening. The Mac driver shows a menu-bar status item instead.
     func steamBottleTweaks() {
         func reg(_ k: String, _ n: String, _ t: String, _ v: String) {   // recorded in the registry ledger as bottle settings (never pruned)
             let exe = k.components(separatedBy: "AppDefaults\\").dropFirst().first?.components(separatedBy: "\\").first ?? ""
@@ -123,7 +125,9 @@ extension Model {
         for d in ["xinput1_1", "xinput1_2", "xinput1_3", "xinput1_4", "xinput9_1_0", "xinputuap", "dinput", "dinput8"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\DllOverrides", d, "REG_SZ", "") }
         for d in ["gameoverlayrenderer", "gameoverlayrenderer64"] { reg("HKCU\\Software\\Wine\\DllOverrides", d, "REG_SZ", "") }
         reg("HKCU\\Control Panel\\Desktop", "LogPixels", "REG_DWORD", "96")
-        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI).\n"
+        Model.regDelete(selected, "HKCU\\Software\\Wine\\Systray", "Hidden")   // template often sets Hidden=1 — Steam then can't minimize
+        reg("HKCU\\Software\\Wine\\X11 Driver", "ShowSystray", "REG_SZ", "true")   // leftover X11 key from some templates; harmless on Mac
+        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI, system tray on).\n"
     }
     // Battle.net.config: hardware acceleration and streaming off (CEF under Wine renders black otherwise). Merged, never clobbered.
     func battlenetConfig() {
