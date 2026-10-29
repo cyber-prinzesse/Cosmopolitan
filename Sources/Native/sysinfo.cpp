@@ -107,3 +107,16 @@ extern "C" int cosmo_proc_find_in(const char *needle, const char *cwd_under, int
     try { test_throw(); return proc_find(needle, cwd_under, pids, cap); } catch (...) { return 0; }
 }
 extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) noexcept { return cosmo_proc_find_in(needle, nullptr, pids, cap); }
+
+// Fault-loop watchdog: whole-process PROC_PIDTASKINFO counters. Per-thread times under Rosetta read ~0 for the busy threads of a
+// hang, and the exception-server thread is idle (0 %); the signal is process-wide fault/message storm rates instead.
+static int proc_task_counts(int32_t pid, uint64_t *faults, uint64_t *messages_sent) {
+    if (pid <= 0 || !faults || !messages_sent) return -1;
+    struct proc_taskinfo ti; memset(&ti, 0, sizeof ti);
+    if (proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &ti, (int)sizeof ti) <= 0) return -1;
+    *faults = ti.pti_faults; *messages_sent = ti.pti_messages_sent;
+    return 0;
+}
+extern "C" int cosmo_proc_task_counts(int32_t pid, uint64_t *faults, uint64_t *messages_sent) noexcept {
+    try { test_throw(); return proc_task_counts(pid, faults, messages_sent); } catch (...) { return -1; }
+}
