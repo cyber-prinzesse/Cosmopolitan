@@ -4,7 +4,7 @@
 //  7 per-game pin can't serve → ask, with the best other choice · 8 DB known-good backend can serve → use it
 //  9 DB known-good backend's installed version crashed this game here → ask: roll back side by side · 10 capability heuristic → use
 //  11 global default, when it is among the capable backends → use it. Precedence: blockers > per-game pin > DB > heuristic > global default.
-//  12 (cosmo_fallback, after a crash within 30 s) next of DXMT → D3DMetal → DXVK that serves the main API and hasn't failed here → use it;
+//  12 (cosmo_fallback, after a crash within 30 s) next of DXMT → D3DMetal → DXVK → vkd3d-proton that serves the main API and hasn't failed here → use it;
 //     the user's own pin crashed → ask with that proposal; none left → incompatible. The caller retries once, never more.
 // Pre-flight (cosmo_preflight, item 28): Direct3D/DirectDraw imports → API bits; a .NET header or mscoree.dll → Wine Mono; a Visual C++
 // 2015–2022 DLL → that runtime in the program's bitness; a DirectX June 2010 DLL (d3dx*, xaudio2_*, xinput1_*, …) → DirectX.
@@ -84,10 +84,10 @@ cosmo_decision fallback(const cosmo_decision_input &in, int crashed) {
     if (getenv("COSMO_NATIVE_TEST_THROW")) throw std::bad_alloc();
 #endif
     cosmo_decision d{}; d.row = 12; d.verdict = COSMO_INCOMPATIBLE; d.backend = COSMO_BE_NONE;
-    static const int chain[] = { COSMO_BE_DXMT, COSMO_BE_D3DMETAL, COSMO_BE_DXVK };
+    static const int chain[] = { COSMO_BE_DXMT, COSMO_BE_D3DMETAL, COSMO_BE_DXVK, COSMO_BE_VKD3D_PROTON };
     const uint32_t api = mainApi(in.apis);
-    int from = 0; for (int i = 0; i < 3; i++) if (chain[i] == crashed) from = i + 1;
-    for (int i = from; i < 3; i++) {
+    int from = 0; for (int i = 0; i < 4; i++) if (chain[i] == crashed) from = i + 1;
+    for (int i = from; i < 4; i++) {
         const int b = chain[i];
         if (b != crashed && (in.serves[b] & api) && !in.failed_here[b]) { d.verdict = in.game_pin == crashed ? COSMO_ASK : COSMO_USE; d.backend = b; break; }
     }

@@ -70,7 +70,7 @@ typedef struct {
     int32_t  error;                         // 0 ok, 1 no input, 2 internal error
 } cosmo_decision;
 cosmo_decision cosmo_decide(const cosmo_decision_input *in) COSMO_NOEXCEPT;
-// Row 12, driver fallback: `crashed` failed this game within 30 s. USE the next backend of DXMT → D3DMetal → DXVK that serves the main
+// Row 12, driver fallback: `crashed` failed this game within 30 s. USE the next backend of DXMT → D3DMetal → DXVK → vkd3d-proton that serves the main
 // API and hasn't failed here; ASK (with that proposal) when the user pinned the crashed one; INCOMPATIBLE with backend NONE when none is left.
 cosmo_decision cosmo_fallback(const cosmo_decision_input *in, int32_t crashed) COSMO_NOEXCEPT;
 // ---- Pre-flight (item 28): what a program needs before it starts, from import names (its own and those of the DLLs beside it), its

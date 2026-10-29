@@ -53,7 +53,7 @@ extension Model {
     }
 
     // Graphics APIs the program uses. The string scan is cached per exe (keyed by size + date) because it reads tens of MB.
-    func graphicsAPIs(_ exe: String, imports: [String]) -> [String] {
+    func graphicsAPIs(_ exe: String, imports: [String], canLoad: Bool = false) -> [String] {   // canLoad: every API its files can load
         let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
         let attrs = try? fm.attributesOfItem(atPath: exe)
         let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))"
@@ -88,7 +88,7 @@ extension Model {
         }
         // Engines that can load either D3D11 or D3D12 at runtime (Unity, Unreal 4, Witcher 3 DX11) default to D3D11; D3D12 counts
         // only when imported (or when Agility/DXIL files made the launch check add d3d12.dll to the imports).
-        if found.contains("Direct3D 11"), !imports.contains("d3d12.dll") { found.remove("Direct3D 12") }
+        if !canLoad, found.contains("Direct3D 11"), !imports.contains("d3d12.dll") { found.remove("Direct3D 12") }
         for (api, dlls) in apiDLLs where dlls.contains(where: imports.contains) { found.insert(api) }
         return apiDLLs.map { $0.api }.filter(found.contains)
     }
