@@ -59,6 +59,7 @@ import Network
     @Published var readiness: [String: Needs] = [:]   // per-program pre-verification (tile light + tooltip)
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
     var steamLoopWarned: [String: Date] = [:]          // Steam window-loop warning, per bottle (rate limit)
+    var steamSeenRunning: [String: Bool] = [:]         // last known steam.exe up/down per bottle (LaunchOptions sync on exit)
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
     @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)
@@ -99,11 +100,19 @@ import Network
     // (its own wineserver). Never another bottle's Steam: this used to pkill every steam.exe on the Mac.
     func stopSteam(_ bottle: String? = nil) async {
         let b = bottle ?? selected, pfx = "\(bottlesDir)/\(b)", ws = "\((wineBin as NSString).deletingLastPathComponent)/wineserver"
+        let wasUp = steamRunning(in: b)
         wine(b, ["C:\\Program Files (x86)\\Steam\\steam.exe", "-shutdown"], block: false)
         for _ in 0..<20 { try? await Task.sleep(nanoseconds: 1_000_000_000); if !steamRunning(in: b) { break } }
         if steamRunning(in: b) { log += "Steam ignored the shutdown request; stopping \(b)'s programs.\n"; _ = sh("env WINEPREFIX='\(pfx)' '\(ws)' -k") }
         // Let the prefix's wineserver finish tearing down (≤15 s); relaunching into a dying server made Steam fail to create its first window.
         _ = sh("env WINEPREFIX='\(pfx)' perl -e 'alarm 15; exec @ARGV' -- '\(ws)' -w 2>/dev/null; sleep 1")
+        // Steam rewrites localconfig.vdf on exit; once steam.exe is gone, settle then sync LaunchOptions (same path as a natural quit).
+        steamSeenRunning[b] = false
+        if wasUp {
+            let delay = steamLaunchSyncDelay
+            if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            if !steamRunning(in: b) { syncSteamLaunchOptions(bottle: b) }
+        }
     }
     // Item 24: why this bottle's Steam must not be restarted right now, or nil. A download: an app manifest in a download/update state, or
     // Steam's own Updating flag. A game: a process from steamapps\common working inside this bottle, or Steam's Running flag.
@@ -194,9 +203,19 @@ import Network
             if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s while the app is active (avoids background IOHIDManager polls while a game runs).
-        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard NSApp?.isActive != false else { return }; self?.updateStatus() } }
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard self?.statusPollingActive == true else { return }; self?.updateStatus() } }
+        // Steam LaunchOptions sync: must see quits while Cosmopolitan is in the background (user closes Steam from Steam/game; Steam self-update restart).
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.noteSteamRunningState() } }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor(); self?.steamLoopCheck() } }
+        // Steam already down at launch: no running→gone edge, so apply LaunchOptions once now (Steam Play / REDlauncher skip).
+        if !cliMode { syncSteamLaunchOptionsWhileSteamDown() }
+    }
+
+    // Status UI polling stays frontmost-only. Test: COSMO_TEST_APP_INACTIVE=1 pretends the app is in the background.
+    var statusPollingActive: Bool {
+        if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_APP_INACTIVE"] == "1" { return false }
+        return NSApp?.isActive != false
     }
 
     func refresh() {
