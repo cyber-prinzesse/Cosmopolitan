@@ -1,15 +1,18 @@
 import Foundation
 
 extension Model {
-    // Wine's segv_handler on a Metal/D3DMetal worker (no TEB) re-enters forever: the window freezes, the process never exits, and
-    // Rosetta's "com.apple.rosetta.exceptionserver" thread burns a core (normally ~0). Detect that and SIGKILL only that program's
-    // pid so the existing crash / driver-fallback path can run (Beta engines are patched; Sikarugir 10.0_8 is not).
+    // Wine's segv_handler on a Metal/D3DMetal worker (no TEB) re-enters forever: the window freezes, the process never exits.
+    // Detect that and SIGKILL only that program's pid so the existing crash / driver-fallback path can run (Beta engines are
+    // patched; Sikarugir 10.0_8 is not).
     static let faultLoopHeadline = "froze in a crash loop inside the graphics driver: stopped it"
 
-    // Sample every 5 s over a 20 s window. Fire when the exception server used ≥ 40 % of a core and ≥ 50 % of the whole process's
-    // CPU (PROC_PIDTASKINFO pti_total_*): in a real hang it is nearly alone (write-watch storms with busy game threads stay ~10 %).
-    // A 2-thread Rosetta infinite-fault stand-in shares the storm with the JIT peer (~47 %); that peer is not game work, so the
-    // half-process bar is also met when there are only those two threads and the 40 %-of-a-core floor holds.
+    // Measured on a real hang (GravityMark D3D12 200k asteroids, D3DMetal 4.0b3, unpatched Wine ntdll, 37 threads) vs healthy DX12,
+    // PROC_PIDTASKINFO rates per second over 10 s:
+    //   hang:    faults 58,176/s  messages_sent 581,768/s  syscalls_mach 407,244/s  csw 117,513/s  cpu 104 %
+    //   healthy: faults      0/s  messages_sent   2,949/s  syscalls_mach  27,167/s  csw   7,648/s  cpu 223 %
+    // Rosetta's exception-server thread was idle (0 %); the faulting thread spun in the signal handler. Per-thread user/system
+    // times under Rosetta read ~0 for the busy threads, so those can't be used. Sample whole-process counters every 5 s; fire when
+    // every interval in a 20 s window (4 in a row) has faults ≥ 20,000/s and messages_sent ≥ 100,000/s.
     // Steam: steam.exe -applaunch exits before the game exists — keep polling faultLoopGamePid for up to 120 s after launch.
     func watchFaultLoop(pid startPid: Int32, exe: String, resolveGamePid: Bool = true) {
         guard startPid > 1 else { return }
@@ -17,33 +20,31 @@ extension Model {
         let token = faultLoopTokens[exe]!
         let watchStart = Date()
         Task { @MainActor in
-            var samples: [(Date, Int64, Int64)] = []   // wall, exception-server ns, process ns
             var pid = startPid
             var haveGame = false
+            var prev: (Date, UInt64, UInt64)? = nil   // wall, faults, messages_sent
+            var hotStreak = 0
             while faultLoopTokens[exe] == token {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 guard faultLoopTokens[exe] == token else { return }
                 if resolveGamePid, let g = self.faultLoopGamePid(exe) {
-                    if g != pid { samples.removeAll() }   // new process: fresh window
+                    if g != pid { prev = nil; hotStreak = 0 }   // new process: fresh window
                     pid = g; haveGame = true
                 }
                 if kill(pid, 0) != 0 {
-                    // Launcher gone before the game appeared: keep looking until the 120 s handoff window ends.
                     if resolveGamePid, !haveGame, Date().timeIntervalSince(watchStart) < 120 { continue }
                     faultLoopTokens[exe] = nil; return
                 }
-                guard let exc = rosettaExcCPUNs(pid), let proc = procCPUNs(pid) else { continue }   // no Rosetta thread / native: stay cheap
+                guard let cur = procTaskCounts(pid) else { continue }
                 let now = Date()
-                samples.append((now, exc, proc))
-                samples.removeAll { now.timeIntervalSince($0.0) > 25 }
-                guard let first = samples.first, now.timeIntervalSince(first.0) >= 20 else { continue }
-                let wall = now.timeIntervalSince(first.0)
-                let excDelta = exc - first.1, procDelta = proc - first.2
-                guard procDelta > 0 else { continue }
-                let ofCore = Double(excDelta) / 1_000_000_000.0 / wall
-                let ofProc = Double(excDelta) / Double(procDelta)
-                let alone = ofProc >= 0.50 || (procThreadCount(pid) <= 2 && ofCore >= 0.40)
-                guard ofCore >= 0.40, alone else { continue }
+                defer { prev = (now, cur.faults, cur.messagesSent) }
+                guard let p = prev else { continue }
+                let dt = now.timeIntervalSince(p.0)
+                guard dt >= 4.0 else { continue }   // need a real interval (clock skew / first sample)
+                let faultsPerSec = Double(cur.faults &- p.1) / dt
+                let msgsPerSec = Double(cur.messagesSent &- p.2) / dt
+                if faultsPerSec >= 20_000, msgsPerSec >= 100_000 { hotStreak += 1 } else { hotStreak = 0 }
+                guard hotStreak >= 4 else { continue }   // 4 × ~5 s ≈ 20 s of sustained storm
                 let name = appName(exe)
                 log += "\(name) \(Model.faultLoopHeadline)\n"
                 faultLoopCrash[exe] = true

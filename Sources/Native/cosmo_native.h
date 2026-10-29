@@ -40,12 +40,8 @@ int cosmo_on_battery(void) COSMO_NOEXCEPT;
 // PIDs whose executable path or argv[0] contains `needle` (excluding the caller); later arguments are ignored on purpose. Returns the number written.
 int cosmo_proc_find(const char *needle, int32_t *pids, int cap) COSMO_NOEXCEPT;
 int cosmo_proc_find_in(const char *needle, const char *cwd_under, int32_t *pids, int cap) COSMO_NOEXCEPT;   // …working inside cwd_under
-// CPU time (user+system, nanoseconds) of that process's "com.apple.rosetta.exceptionserver" thread; -1 if none (native) or no access.
-int64_t cosmo_rosetta_exc_cpu_ns(int32_t pid) COSMO_NOEXCEPT;
-// Whole-process CPU time (user+system, nanoseconds) via PROC_PIDTASKINFO; -1 if no access.
-int64_t cosmo_proc_cpu_ns(int32_t pid) COSMO_NOEXCEPT;
-// Number of threads in the process (PROC_PIDLISTTHREADS); -1 if no access.
-int32_t cosmo_proc_thread_count(int32_t pid) COSMO_NOEXCEPT;
+// PROC_PIDTASKINFO counters for the fault-loop watchdog (cumulative). Returns 0 on success, -1 if no access.
+int cosmo_proc_task_counts(int32_t pid, uint64_t *faults, uint64_t *messages_sent) COSMO_NOEXCEPT;
 
 // ---- Compatibility decision: a pure function over plain values (docs/design/compat-gate.md §3.6). Thread-safe, no I/O. ----
 enum { COSMO_API_DDRAW = 1u << 0, COSMO_API_D3D8 = 1u << 1, COSMO_API_D3D9 = 1u << 2, COSMO_API_D3D10 = 1u << 3, COSMO_API_D3D11 = 1u << 4, COSMO_API_D3D12 = 1u << 5 };
