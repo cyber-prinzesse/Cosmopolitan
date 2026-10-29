@@ -19,13 +19,9 @@ extension Model {
            let en = fm.enumerator(atPath: dir), let real = en.compactMap({ $0 as? String }).first(where: { $0.lowercased().hasSuffix("-shipping.exe") || ($0.contains("/Binaries/Win64/") && $0.lowercased().hasSuffix(".exe") && !$0.hasPrefix("Engine/")) }) {
             imps = exeImports("\(dir)/\(real)"); impSrc = "\(dir)/\(real)"
         }
-        // Unreal 5 loads its D3D12 RHI at runtime (no import) but ships the Agility SDK beside the exe: Binaries/Win64/D3D12/D3D12Core.dll.
-        if !imps.contains("d3d12.dll"), let en = fm.enumerator(atPath: dir) {
-            for case let p as String in en {   // stay inside this program: never descend into a Steam library or the Unreal Engine folder
-                if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
-                if p.hasSuffix("D3D12/D3D12Core.dll") { imps.append("d3d12.dll"); break }
-            }
-        }
+        // Agility SDK / DXIL beside the exe: hard evidence of Direct3D 12 — add d3d12.dll so the DX11-default string guard does not drop it.
+        // D3D12CreateDevice alone stays a graphicsAPIs string cue (Witcher 3's DX11 build has it and must keep DXMT).
+        if !imps.contains("d3d12.dll"), runtimeShipsD3D12Files(impSrc) { imps.append("d3d12.dll") }
         let beside = Model.besideImports(adir).subtracting(imps)   // item 28: what the DLLs next to it import
         let local = Set(((try? fm.contentsOfDirectory(atPath: adir)) ?? []).map { $0.lowercased() })
         let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(bottle)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })

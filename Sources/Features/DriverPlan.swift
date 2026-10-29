@@ -23,6 +23,35 @@ func rendererDLLs(_ d: String, is32: Bool) -> Set<String> {   // an unusable dri
 }
 
 extension Model {
+    // File cues that a game ships Direct3D 12 (Agility SDK / DXIL). These alone may add d3d12.dll to the launch-check imports
+    // (bypassing the DX11-default guard). Adapted from abduzeedo/mapc-engine GraphicsProbe.swift (Apache-2.0; THIRD_PARTY_NOTICES.md).
+    // The bare string D3D12CreateDevice is handled only in graphicsAPIs — Witcher 3's DX11 exe contains it and must stay on DXMT.
+    func runtimeShipsD3D12Files(_ exe: String) -> Bool {
+        let fm = FileManager.default
+        let attrs = try? fm.attributesOfItem(atPath: exe)
+        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))"
+        let cache = "\(bottlesDir)/\(bottleOf(exe))/options/.dx12-\((exe as NSString).lastPathComponent)"
+        if let c = try? String(contentsOfFile: cache, encoding: .utf8), c.hasPrefix(key + "\n") {
+            return c.components(separatedBy: "\n").dropFirst().first == "1"
+        }
+        let yes = Model.probeD3D12Files(exe)
+        try? fm.createDirectory(atPath: (cache as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? "\(key)\n\(yes ? "1" : "0")\n".write(toFile: cache, atomically: true, encoding: .utf8)
+        return yes
+    }
+    nonisolated static func probeD3D12Files(_ exe: String) -> Bool {
+        let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
+        guard let en = fm.enumerator(atPath: dir) else { return false }
+        for case let p as String in en {   // stay inside this program: never a Steam library or Unreal Engine tree
+            if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
+            let name = (p as NSString).lastPathComponent.lowercased()
+            let folder = ((p as NSString).deletingLastPathComponent as NSString).lastPathComponent.lowercased()
+            if name == "d3d12core.dll", folder == "d3d12" { return true }   // UE5: Binaries/Win64/D3D12/D3D12Core.dll
+            if name == "dxil.dll" || (name.hasPrefix("dxilconv") && name.hasSuffix(".dll")) { return true }
+        }
+        return false
+    }
+
     // Graphics APIs the program uses. The string scan is cached per exe (keyed by size + date) because it reads tens of MB.
     func graphicsAPIs(_ exe: String, imports: [String]) -> [String] {
         let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
@@ -38,6 +67,10 @@ extension Model {
                 let p = "\(dir)/\(f)", s = (try? fm.attributesOfItem(atPath: p))?[.size] as? Int ?? 0
                 if s > 1_000_000, s < 200_000_000, !apiDLLs.contains(where: { $0.dlls.contains(f.lowercased()) }) { files.append(p) }   // engine modules, not shipped D3D copies
             }
+            // Unity keeps the engine (and D3D12CreateDevice) in UnityPlayer.dll even when it is under 1 MB.
+            let unity = dir + "/UnityPlayer.dll"
+            if fm.fileExists(atPath: unity), !files.contains(unity) { files.append(unity) }
+            let createDevice = Data("D3D12CreateDevice".utf8)
             for f in files.prefix(12) {
                 guard let data = try? Data(contentsOf: URL(fileURLWithPath: f), options: .alwaysMapped) else { continue }
                 for (api, dlls) in apiDLLs where !found.contains(api) {
@@ -47,12 +80,14 @@ extension Model {
                         if variants.contains(where: { v in data.range(of: Data(v.utf8)) != nil || data.range(of: v.data(using: .utf16LittleEndian)!) != nil }) { found.insert(api); break }
                     }
                 }
+                // mapc-engine: D3D12CreateDevice means the binary can load DX12; does not touch imports (DX11+string stays on DXMT).
+                if !found.contains("Direct3D 12"), data.range(of: createDevice) != nil { found.insert("Direct3D 12") }
             }
             try? fm.createDirectory(atPath: (cache as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             try? ([key] + found.sorted()).joined(separator: "\n").write(toFile: cache, atomically: true, encoding: .utf8)
         }
-        // Engines that can load either D3D11 or D3D12 at runtime (Unity, Unreal 4) default to D3D11; D3D12 counts only when imported
-        // (or found as Unreal 5's D3D12Core, which the launch check adds to the imports).
+        // Engines that can load either D3D11 or D3D12 at runtime (Unity, Unreal 4, Witcher 3 DX11) default to D3D11; D3D12 counts
+        // only when imported (or when Agility/DXIL files made the launch check add d3d12.dll to the imports).
         if found.contains("Direct3D 11"), !imports.contains("d3d12.dll") { found.remove("Direct3D 12") }
         for (api, dlls) in apiDLLs where dlls.contains(where: imports.contains) { found.insert(api) }
         return apiDLLs.map { $0.api }.filter(found.contains)

@@ -72,3 +72,10 @@ https://sparkle-project.org — software update framework; updates are EdDSA-sig
 - ProtonDB summaries — https://www.protondb.com (community reports, used as an expectation only).
 - umu-protonfixes — https://github.com/Open-Wine-Components/umu-protonfixes (per-game fix
   scripts; only declarative settings are read from them, no code is executed).
+
+## Ideas adapted from other projects (not bundled)
+
+- abduzeedo/mapc-engine (Apache-2.0) — https://github.com/abduzeedo/mapc-engine. Runtime Direct3D 12
+  detection cues (Agility SDK / DXIL beside the exe, `D3D12CreateDevice` string) and setting
+  `CX_ACTIVE_GRAPHICS_BACKEND=d3dmetal` so CrossOver's win32u reports GPU scheduling to DX12 games.
+  No mapc-engine code is shipped; Cosmopolitan reimplements the ideas in its own launch check / env.
