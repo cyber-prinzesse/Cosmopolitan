@@ -107,3 +107,24 @@ extern "C" int cosmo_proc_find_in(const char *needle, const char *cwd_under, int
     try { test_throw(); return proc_find(needle, cwd_under, pids, cap); } catch (...) { return 0; }
 }
 extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) noexcept { return cosmo_proc_find_in(needle, nullptr, pids, cap); }
+
+// Rosetta's exception-server thread: when Wine's segv_handler re-enters forever on a Metal/D3DMetal worker (no TEB), this thread
+// burns a core continuously. Native (arm64) processes have no such thread → -1, so the Swift watchdog stays idle.
+// PROC_PIDLISTTHREADS with a NULL buffer returns 0 / ENOMEM on recent macOS — always use a fixed buffer (thread id 0 is valid).
+static int64_t rosetta_exc_cpu_ns(int32_t pid) {
+    if (pid <= 0) return -1;
+    uint64_t tids[512];
+    int nb = proc_pidinfo(pid, PROC_PIDLISTTHREADS, 0, tids, (int)sizeof tids);
+    if (nb <= 0) return -1;
+    int n = nb / (int)sizeof(uint64_t);
+    for (int i = 0; i < n; i++) {
+        struct proc_threadinfo ti; memset(&ti, 0, sizeof ti);
+        if (proc_pidinfo(pid, PROC_PIDTHREADINFO, tids[i], &ti, (int)sizeof ti) != (int)sizeof ti) continue;
+        if (strncmp(ti.pth_name, "com.apple.rosetta.exceptionserver", sizeof ti.pth_name) != 0) continue;
+        return (int64_t)ti.pth_user_time + (int64_t)ti.pth_system_time;   // nanoseconds
+    }
+    return -1;
+}
+extern "C" int64_t cosmo_rosetta_exc_cpu_ns(int32_t pid) noexcept {
+    try { test_throw(); return rosetta_exc_cpu_ns(pid); } catch (...) { return -1; }
+}

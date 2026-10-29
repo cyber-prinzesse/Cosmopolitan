@@ -70,6 +70,8 @@ import Network
     let pathMonitor = NWPathMonitor()
     var launchedDrivers: [String: [String]] = [:]                // the driver set each program last started with (driver fallback)
     var fallbackTried: Set<String> = []                           // programs on their one fallback retry
+    var faultLoopTokens: [String: UUID] = [:]                     // active Rosetta fault-loop watches (token cancelled on exit/detect)
+    var faultLoopCrash: [String: Bool] = [:]                      // terminationHandler: use the fault-loop crash headline
     @Published var healthProblems: [HealthProblem] = []           // found by the start-up health check (item 35)
     @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
