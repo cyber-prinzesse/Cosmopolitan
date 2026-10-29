@@ -56,7 +56,7 @@ extension ContentView {
     }
 
     var librarySummary: String {
-        let n = m.library.count, ready = m.library.filter { ["Ready", "Works offline"].contains(m.gameState($0).word) }.count
+        let n = m.library.count, ready = m.library.reduce(into: 0) { if ["Ready", "Works offline"].contains(m.gameState($1).word) { $0 += 1 } }
         return n == 0 ? "Windows games on your Mac" : "\(n) game\(n == 1 ? "" : "s") · \(ready) ready"
     }
 
@@ -140,7 +140,19 @@ extension ContentView {
             Button("Fix this game") { m.fixGame(p) }
             Button("Report a problem") { m.reportProblem(p) }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
+            if let alts = m.libraryAlts[p], !alts.isEmpty {
+                Divider()
+                Menu("Bottle: \(m.bottleOf(p))") {
+                    Button("\(m.bottleOf(p)) (current)") { }.disabled(true)
+                    ForEach(alts, id: \.self) { alt in
+                        Button(m.bottleOf(alt)) { m.play(alt) }
+                    }
+                }
+            } else {
+                Text("Bottle: \(m.bottleOf(p))").foregroundStyle(Cosmo.textSecondary)
+            }
             Divider()
+            Button("Hide from Library") { m.hideFromLibrary(p) }
             Button("Uninstall…") { uninstallExe = p }
         } label: { Image(systemName: "ellipsis").font(.system(size: 15, weight: .medium)).foregroundStyle(Cosmo.textSecondary).frame(width: 28, height: 28).contentShape(Rectangle()) }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("More actions for \(appName(p))")

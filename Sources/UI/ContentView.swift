@@ -145,8 +145,8 @@ struct ContentView: View {
                             Button("Not now") { m.pendingSteamRestart = nil; m.log += "Steam keeps running; the change reaches games when Steam next starts.\n" }.controlSize(.small)
                         }
                         Spacer()
-                        Button("Find apps") { m.findApps() }.disabled(m.selected.isEmpty || m.busy)
-                            .help("Searches the whole C: drive of this bottle for programs the normal scan missed.")
+                        Button("Find apps") { m.findAppsAskingFolder() }.disabled(m.bottles.isEmpty || m.busy)
+                            .help("Searches every bottle's C: drive (and an optional folder you pick) for programs; never adds a duplicate tile.")
                         Button("Run .exe / .msi…") { pick() }.disabled(m.busy)
                         storesMenu
                     }
