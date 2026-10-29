@@ -19,8 +19,9 @@ extension Model {
            let en = fm.enumerator(atPath: dir), let real = en.compactMap({ $0 as? String }).first(where: { $0.lowercased().hasSuffix("-shipping.exe") || ($0.contains("/Binaries/Win64/") && $0.lowercased().hasSuffix(".exe") && !$0.hasPrefix("Engine/")) }) {
             imps = exeImports("\(dir)/\(real)"); impSrc = "\(dir)/\(real)"
         }
-        // Runtime Direct3D 12 (no PE import): Agility SDK / DXIL beside the exe, or D3D12CreateDevice in the binary (mapc-engine GraphicsProbe).
-        if !imps.contains("d3d12.dll"), runtimeLoadsD3D12(impSrc) { imps.append("d3d12.dll") }
+        // Agility SDK / DXIL beside the exe: hard evidence of Direct3D 12 — add d3d12.dll so the DX11-default string guard does not drop it.
+        // D3D12CreateDevice alone stays a graphicsAPIs string cue (Witcher 3's DX11 build has it and must keep DXMT).
+        if !imps.contains("d3d12.dll"), runtimeShipsD3D12Files(impSrc) { imps.append("d3d12.dll") }
         let beside = Model.besideImports(adir).subtracting(imps)   // item 28: what the DLLs next to it import
         let local = Set(((try? fm.contentsOfDirectory(atPath: adir)) ?? []).map { $0.lowercased() })
         let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(bottle)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })

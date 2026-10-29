@@ -7,15 +7,27 @@ tw_snapshot
 ct --newbottle D >/dev/null 2>&1; [[ -d "$(tprefix D)/drive_c" ]] || fail "throwaway bottle not created"
 PF="$(tprefix D)/drive_c/Program Files"
 
-# Exe with D3D12CreateDevice string, no d3d12.dll import.
+# Exe with D3D12CreateDevice string only (no d3d11/d3d12 import) → Direct3D 12 via graphicsAPIs.
 mkdir -p "$PF/String DX12"
 cat > "$T/str.c" <<'C'
 int main(void) {
-  static const char entry[] = "D3D12CreateDevice";   /* runtime cue; not an import */
+  static const char entry[] = "D3D12CreateDevice";   /* string cue only; not an import */
   return entry[0] == 0;
 }
 C
 x86_64-w64-mingw32-gcc -O0 -s "$T/str.c" -o "$PF/String DX12/String DX12.exe" || fail "could not build String DX12"
+
+# Witcher 3–style: imports d3d11.dll AND contains D3D12CreateDevice → must stay Direct3D 11 / dxmt.
+mkdir -p "$PF/DX11 With String"
+cat > "$T/dx11str.c" <<'C'
+#include <d3d11.h>
+int main(void) {
+  static const char entry[] = "D3D12CreateDevice";   /* present in Witcher 3's DX11 exe; must not force D3DMetal */
+  if (entry[0] == 0) D3D11CreateDevice(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);   /* keeps the d3d11 import; never runs */
+  return 0;
+}
+C
+x86_64-w64-mingw32-gcc -O0 -s "$T/dx11str.c" -o "$PF/DX11 With String/DX11 With String.exe" -ld3d11 || fail "could not build DX11 With String"
 
 # Exe with Agility SDK folder beside it, no string / no import.
 mkdir -p "$PF/Agility DX12/d3d12"
@@ -23,7 +35,7 @@ cat > "$T/plain.c" <<'C'
 int main(void) { return 0; }
 C
 x86_64-w64-mingw32-gcc -O2 -s "$T/plain.c" -o "$PF/Agility DX12/Agility DX12.exe" || fail "could not build Agility DX12"
-# Minimal PE stub as d3d12core.dll (name + folder matter, not contents).
+# Minimal PE stub as d3d12core.dll (name + folder matter, not contents; case-insensitive: UE5 uses D3D12/).
 x86_64-w64-mingw32-gcc -O2 -s -shared "$T/plain.c" -o "$PF/Agility DX12/d3d12/d3d12core.dll" || fail "could not build d3d12core.dll"
 
 # Control: plain exe, no cues.
@@ -34,7 +46,12 @@ check() { ct --check D "$PF/$1/$1.exe" 2>&1; }
 
 c=$(check "String DX12")
 [[ "$c" == *"Direct3D 12"* ]] || fail "String DX12 should be Direct3D 12: $c"
-print -r -- "ok: exe with D3D12CreateDevice string (no d3d12 import): Direct3D 12"
+print -r -- "ok: exe with D3D12CreateDevice string only (no d3d11): Direct3D 12"
+
+c=$(check "DX11 With String")
+[[ "$c" == *"Direct3D 11"* && "$c" == *"dxmt"* ]] || fail "DX11+string should stay Direct3D 11 → dxmt: $c"
+[[ "$c" != *"Direct3D 12"* ]] || fail "DX11+string must not be Direct3D 12: $c"
+print -r -- "ok: d3d11 import + D3D12CreateDevice string stays Direct3D 11 → dxmt (Witcher 3 case)"
 
 c=$(check "Agility DX12")
 [[ "$c" == *"Direct3D 12"* ]] || fail "Agility DX12 should be Direct3D 12: $c"
