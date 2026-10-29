@@ -29,7 +29,8 @@ extension Model {
     func runtimeShipsD3D12Files(_ exe: String) -> Bool {
         let fm = FileManager.default
         let attrs = try? fm.attributesOfItem(atPath: exe)
-        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))"
+        // "|2": answers cached before cef folders were skipped (steam.exe said yes from Chromium's dxil.dll) are worked out again.
+        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))|2"
         let cache = "\(bottlesDir)/\(bottleOf(exe))/options/.dx12-\((exe as NSString).lastPathComponent)"
         if let c = try? String(contentsOfFile: cache, encoding: .utf8), c.hasPrefix(key + "\n") {
             return c.components(separatedBy: "\n").dropFirst().first == "1"
@@ -43,7 +44,8 @@ extension Model {
         let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
         guard let en = fm.enumerator(atPath: dir) else { return false }
         for case let p as String in en {   // stay inside this program: never a Steam library or Unreal Engine tree
-            if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
+            // cef: Chromium ships its own dxil.dll for its GPU process (Steam's bin/cef/cef.win64): a browser, not a Direct3D 12 game.
+            if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") || (p as NSString).lastPathComponent.lowercased() == "cef" { en.skipDescendants(); continue }
             let name = (p as NSString).lastPathComponent.lowercased()
             let folder = ((p as NSString).deletingLastPathComponent as NSString).lastPathComponent.lowercased()
             if name == "d3d12core.dll", folder == "d3d12" { return true }   // UE5: Binaries/Win64/D3D12/D3D12Core.dll

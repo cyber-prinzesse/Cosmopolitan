@@ -173,8 +173,9 @@ extension Model {
                 Task.detached { Model.probeDotNet(pfx); await MainActor.run { if bottle == self.selected { for p in self.programs { self.readiness[p] = self.launchNeeds(p) } } } }
             }
             // Bottle-wide DirectX 12 need: flip the marker, re-check the tiles against the new set, and restart Steam so games started from inside it match.
-            // Store clients (Epic's launcher imports d3d12 for its UI) don't count: they run on their own fixed driver set.
-            let needs12 = programs.contains { readiness[$0]?.dx12 == true && storeDrivers($0) == nil }, marker = dx12Marker(selected)
+            // Store clients (Epic's launcher imports d3d12 for its UI) don't count: they run on their own fixed driver set. Neither does
+            // steam.exe: it only hosts games, and on Wine 11 its GPU-drawn web views crash on D3DMetal's d3d11/dxgi (black Steam window).
+            let needs12 = programs.contains { readiness[$0]?.dx12 == true && storeDrivers($0) == nil && ($0 as NSString).lastPathComponent.lowercased() != "steam.exe" }, marker = dx12Marker(selected)
             if needs12 != FileManager.default.fileExists(atPath: marker), bottle == selected, !cliMode {   // CLI runs see a partial program list; never flip the bottle (and restart Steam) from there
                 snapshot("before driver switch: \(needs12 ? "d3dmetal" : "dxmt") for Direct3D 10/11"); backupBottleSaves(selected, "before driver switch")
                 if needs12 { FileManager.default.createFile(atPath: marker, contents: nil) } else { try? FileManager.default.removeItem(atPath: marker) }
