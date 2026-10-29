@@ -120,18 +120,20 @@ after=$(shasum -a 256 "$ST/userdata/111/config/localconfig.vdf" | cut -c1-16)
 print -r -- "$out" | grep -q "Steam has your own launch options" && fail "logged 'not applied' for already-equal value: $out"
 print -r -- "ok: already-equal LaunchOptions adopted into sidecar; no 'not applied' log; VDF untouched"
 
-# 6. Steam was running (no write), then exits → LaunchOptions applied after the exit settle.
+# 6. Steam was running (no write), then exits while Cosmopolitan is inactive → LaunchOptions still applied (background Steam watch).
 rm -f "$(tprefix S)/options/.steamlaunch-292030"
 mkcfg "$ST/userdata/111/config/localconfig.vdf"
 mkcfg "$ST/userdata/222/config/localconfig.vdf"
 out=$(COSMO_TEST_STEAM_RUNNING=1 ct --tunesteam S 2>&1)
 [[ -z "$(opts "$ST/userdata/111/config/localconfig.vdf")" ]] || fail "wrote LaunchOptions while Steam was running (setup for exit case)"
-out=$(COSMO_TEST_STEAM_EXIT_DELAY=0 ct --steam-exit-sync S 2>&1)
+# COSMO_TEST_APP_INACTIVE=1: status polling off (as when a game/Steam is frontmost); Steam watch must still see the exit.
+out=$(COSMO_TEST_APP_INACTIVE=1 COSMO_TEST_STEAM_EXIT_DELAY=0 ct --steam-exit-sync S 2>&1)
+print -r -- "$out" | grep -q 'status polling active: false' || fail "expected inactive status polling for exit sync: $out"
 o1=$(opts "$ST/userdata/111/config/localconfig.vdf"); o2=$(opts "$ST/userdata/222/config/localconfig.vdf")
-[[ "$o1" == "--launcher-skip -dx12" && "$o2" == "--launcher-skip -dx12" ]] || fail "after Steam exit sync: 111='$o1' 222='$o2'"
-[[ "$(cat "$(tprefix S)/options/.steamlaunch-292030")" == "--launcher-skip -dx12" ]] || fail "sidecar missing after Steam exit sync"
+[[ "$o1" == "--launcher-skip -dx12" && "$o2" == "--launcher-skip -dx12" ]] || fail "after Steam exit sync (inactive): 111='$o1' 222='$o2'"
+[[ "$(cat "$(tprefix S)/options/.steamlaunch-292030")" == "--launcher-skip -dx12" ]] || fail "sidecar missing after Steam exit sync (inactive)"
 fmt_ok "$ST/userdata/111/config/localconfig.vdf" >/dev/null || fail "formatting wrong after Steam exit sync"
-print -r -- "ok: Steam was running then exited → LaunchOptions written after exit"
+print -r -- "ok: Steam exited while Cosmopolitan inactive → LaunchOptions written (background watch)"
 
 tw_check || fail "your real data changed"
 print "PASS steam_launch_options"

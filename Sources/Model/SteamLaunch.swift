@@ -130,7 +130,7 @@ extension Model {
         }
     }
 
-    // Pretend Steam was up then call noteSteamRunningState (CLI/tests: --steam-exit-sync). Real watch uses the 5 s status timer.
+    // Pretend Steam was up then run the same tick as the background Steam watch (CLI/tests: --steam-exit-sync). Not gated on app active.
     func steamExitSyncNow() {
         guard !selected.isEmpty else { return }
         steamSeenRunning[selected] = true

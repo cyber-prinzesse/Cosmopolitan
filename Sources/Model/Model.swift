@@ -203,9 +203,17 @@ import Network
             if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s while the app is active (avoids background IOHIDManager polls while a game runs).
-        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard NSApp?.isActive != false else { return }; self?.updateStatus(); self?.noteSteamRunningState() } }
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard self?.statusPollingActive == true else { return }; self?.updateStatus() } }
+        // Steam LaunchOptions sync: must see quits while Cosmopolitan is in the background (user closes Steam from Steam/game; Steam self-update restart).
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.noteSteamRunningState() } }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor(); self?.steamLoopCheck() } }
+    }
+
+    // Status UI polling stays frontmost-only. Test: COSMO_TEST_APP_INACTIVE=1 pretends the app is in the background.
+    var statusPollingActive: Bool {
+        if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_APP_INACTIVE"] == "1" { return false }
+        return NSApp?.isActive != false
     }
 
     func refresh() {

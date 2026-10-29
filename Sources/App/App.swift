@@ -19,7 +19,8 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         switch a[i] {
         case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
-        case "--steam-exit-sync":   // Steam was up → now gone: settle then sync LaunchOptions (COSMO_TEST_STEAM_EXIT_DELAY, default 2 s)
+        case "--steam-exit-sync":   // Steam was up → now gone via the background watch path (COSMO_TEST_STEAM_EXIT_DELAY; COSMO_TEST_APP_INACTIVE=1 = app not frontmost)
+            m.log += "status polling active: \(m.statusPollingActive)\n"
             m.steamExitSyncNow()
             let wait = m.steamLaunchSyncDelay + 0.5
             RunLoop.main.run(until: Date().addingTimeInterval(wait))
