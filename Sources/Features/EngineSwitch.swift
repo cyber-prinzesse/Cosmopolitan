@@ -16,7 +16,7 @@ extension Model {
             }
             await MainActor.run {
                 self.log += "Snapshotted \(ok) of \(targets.count) bottle\(targets.count == 1 ? "" : "s"). Each is upgraded for \(newEngine) the first time it opens"
-                    + (wine11 ? ", and a Wine 11 upgrade can't be undone — roll back from Advanced › Manage bottle › Snapshots, or switch back to \(defaultEngine) (Wine 10) and restore.\n" : ".\n")
+                    + (wine11 ? ", and a Wine 11 upgrade can't be undone — roll back from Advanced › Manage bottle › Snapshots, or switch back to \(wine10Engine) (Wine 10) and restore.\n" : ".\n")
                 for n in notes.prefix(3) { self.log += "  \(n)\n" }
                 self.requestSteamRestart("the new engine reaches Steam games when Steam next starts")
             }

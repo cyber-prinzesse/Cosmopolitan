@@ -20,8 +20,12 @@ func enterTestModeIfNeeded() {
     func inside(_ p: String) -> Bool { let r = URL(fileURLWithPath: p).resolvingSymlinksInPath().path; return r == realHome || r.hasPrefix(realHome + "/") }
     for p in [support, bottlesDir, logPath, Model.sharedRoot] where inside(p) { die("refusing to start: \(p) is inside your real home \(realHome).") }
 }
-// The engine is a setting (Settings › Engine); 10.0_8 is the tested default. Pinned there because 11.x renders Steam black on macOS 27.
-let defaultEngine = "WS12WineSikarugir10.0_8"
+// The engine is a setting (Settings › Engine). The everyday app defaults to Wine 10 (10.0_8, tested; 11.x Staging renders Steam black on
+// macOS 27). The Beta defaults to Highball's Wine 11 once that engine is in its engines folder, and to Wine 10 until then: first-run setup
+// can only install the pinned Wine 10 (Components.swift), so a fresh Beta still gets a working engine.
+let wine10Engine = "WS12WineSikarugir10.0_8"
+let wine11Engine = "highball-11.0-r29"
+var defaultEngine: String { isBetaBuild && engineIsWine11(wine11Engine) ? wine11Engine : wine10Engine }
 var engineName: String { UserDefaults.standard.string(forKey: "engine") ?? defaultEngine }
 var engineDir: String { support + "/engines/\(engineName)/wswine.bundle" }
 var wineBin: String { engineDir + "/bin/wine" }
