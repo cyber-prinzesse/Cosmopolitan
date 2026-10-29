@@ -13,6 +13,9 @@ extension Model {
 
     // Called when a program exits non-zero within 30 s of starting. True when a retry was started (no triage then).
     func driverFallback(_ exe: String, _ code: Int32) -> Bool {
+        // Steam hosts every game's CreateProcess: pinning steam.exe to DXVK/DXMT leaves DX12 games without D3DMetal
+        // ("Support for DirectX 12 is missing"). Exit 42 (self-update) is already ignored; refuse all Steam fallbacks.
+        if exe.lowercased().hasSuffix("/steam/steam.exe") { return false }
         let name = appName(exe), opts = (try? String(contentsOfFile: optionsPath(exe), encoding: .utf8)) ?? ""
         let used = launchedDrivers[exe] ?? []
         guard let crashed = Model.chainSets.first(where: { used.contains($0.name) }) else { return false }   // not on a driver of the chain
@@ -53,6 +56,18 @@ extension Model {
         launch(exe)
         return true
     }
+    // steam.exe must not keep a driver-fallback DRIVERS= pin: every Steam Play game inherits that Unix env (WINEDLLPATH_*).
+    func clearSteamHostDriverFallback(_ exe: String) {
+        let path = optionsPath(exe)
+        let opts = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        guard opts.contains(Model.fallbackMark) else { return }
+        let cleaned = Model.withoutFallback(opts)
+        if cleaned != opts.trimmingCharacters(in: .newlines) {
+            saveOptions(exe, cleaned.isEmpty ? "" : cleaned + "\n")
+            log += "Steam: removed a driver-fallback pin from its Options (games started from Steam need this bottle's drivers, not a pinned DXVK/DXMT set).\n"
+        }
+    }
+
     // Options text without the fallback's lines (its marker and the DRIVERS line right after it).
     nonisolated static func withoutFallback(_ t: String) -> String {
         var out: [String] = [], skip = false

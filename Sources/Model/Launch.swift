@@ -99,6 +99,8 @@ extension Model {
         if Store.battlenet.exes.contains(where: { exe.hasSuffix("/" + ($0 as NSString).lastPathComponent) }) { battlenetConfig() }   // keeps the launcher on software rendering
         let (cmd, args) = launchCmd(exe)
         log += powerHints()
+        // Drop a leftover driver-fallback pin on steam.exe before prepare reads Options: games inherit Steam's env, so DXVK there breaks DX12.
+        if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe) }
         var need = prepare(exe)
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
         launchedDrivers[exe] = need.drivers ?? driverList(launchEnvRaw(bottleOf(exe)), bottle: bottleOf(exe))
