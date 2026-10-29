@@ -54,6 +54,9 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil, fullSpeed: Bool = fal
         if prepend { front.append(dir) } else { e["WINEDLLPATH_" + s] = dir }
         // libd3dshared dlopen()s this value as-is; the dylibs are reached through the symlinked x86_64-unix path, so @rpath can't find the framework on its own.
         if d == "d3dmetal" { e["D3DMETAL_FRAMEWORK_PATH"] = "\(driversDir)/d3dmetal/external/D3DMetal.framework/D3DMetal"; useD3DMetal = true }
+        // vkd3d-proton runs on KosmicKrisp only (this process's Vulkan is KosmicKrisp then, not MoltenVK). Its default feature level is 11_1
+        // there (no sparse residency); 12_1 is what Direct3D 12 games ask for, and GravityMark renders correctly with it.
+        if d == "vkd3d", let icd = kosmicKrispICD() { e["VK_DRIVER_FILES"] = icd; if e["VKD3D_FEATURE_LEVEL"] == nil { e["VKD3D_FEATURE_LEVEL"] = "12_1" } }
     }
     if !front.isEmpty { e["WINEDLLPATH_PREPEND"] = front.joined(separator: ":") }
     // CrossOver win32u (CW HACK 24905): when CX_ACTIVE_GRAPHICS_BACKEND=d3dmetal, KMTQAITYPE_WDDM_2_7_CAPS reports HwSchEnabled /

@@ -1,12 +1,14 @@
 import SwiftUI
 
-// Item 27: a game that crashes within 30 s gets one retry with the next driver (DXMT → D3DMetal → DXVK), chosen by the decision engine's
+// Item 27: a game that crashes within 30 s gets one retry with the next driver (DXMT → D3DMetal → DXVK → vkd3d-proton), chosen by the decision engine's
 // row 12 (cosmo_fallback, C++). The working driver is remembered in the game's Options (a DRIVERS= line marked as the fallback's) and goes
 // into compatibility reports; a retry that crashes too puts the game back to automatic. The user's own DRIVERS choice is asked about.
 extension Model {
     nonisolated static let fallbackMark = "# driver fallback:"
     static let chainSets: [(name: String, backend: cosmo_backend, set: [String])] = [("dxmt", COSMO_BE_DXMT, ["dxmt", "d9vk", "cnc_ddraw"]),
-        ("d3dmetal", COSMO_BE_D3DMETAL, ["d3dmetal", "d9vk", "cnc_ddraw"]), ("dxvk", COSMO_BE_DXVK, ["dxvk", "cnc_ddraw"])]
+        ("d3dmetal", COSMO_BE_D3DMETAL, ["d3dmetal", "d9vk", "cnc_ddraw"]), ("dxvk", COSMO_BE_DXVK, ["dxvk", "cnc_ddraw"]),
+        // No d9vk beside vkd3d: VK_DRIVER_FILES is KosmicKrisp in that process, and DXVK's D3D9 was only ever tested on MoltenVK.
+        ("vkd3d", COSMO_BE_VKD3D_PROTON, ["vkd3d", "cnc_ddraw"])]
     static let apiBits: [String: UInt32] = ["Direct3D 12": UInt32(COSMO_API_D3D12), "Direct3D 11": UInt32(COSMO_API_D3D11),
         "Direct3D 10": UInt32(COSMO_API_D3D10), "Direct3D 9": UInt32(COSMO_API_D3D9), "Direct3D 8": UInt32(COSMO_API_D3D8),
         "DirectDraw": UInt32(COSMO_API_DDRAW)]
@@ -25,7 +27,12 @@ extension Model {
             log += "\(name) crashed with \(crashed.name) too; it is back to the automatic driver choice.\n"; return false
         }
         var inp = cosmo_decision_input()
-        let apis = driverPlan(exe, imports: exeImports(exe)).apis
+        var apis = driverPlan(exe, imports: exeImports(exe)).apis
+        // A program with both D3D11 and D3D12 code counts as D3D11 (DriverPlan), yet it was on D3DMetal and may have crashed in its D3D12
+        // path (GravityMark -direct3d12 at 200k asteroids: Apple's NULL read in the residency set). With vkd3d-proton able to run here,
+        // try it for D3D12; a D3D11 game that crashes there too goes back to automatic as usual. Without vkd3d nothing changes (DXVK next).
+        if crashed.name == "d3dmetal", !apis.contains("Direct3D 12"), installedDrivers().contains("vkd3d"), driverUsable("vkd3d"),
+           graphicsAPIs(exe, imports: exeImports(exe), canLoad: true).contains("Direct3D 12") { apis.append("Direct3D 12") }
         inp.apis = apis.reduce(0) { $0 | (Model.apiBits[$1] ?? 0) }
         let failed = Set(Model.fallbackHistory(opts).map(\.crashed) + [crashed.name])
         let installed = Set(installedDrivers())
@@ -34,6 +41,7 @@ extension Model {
             if installed.contains("dxmt") { s[Int(COSMO_BE_DXMT.rawValue)] = UInt32(COSMO_API_D3D10 | COSMO_API_D3D11) }
             if installed.contains("d3dmetal"), d3dmetalOK, d3dmetalInstalled() { s[Int(COSMO_BE_D3DMETAL.rawValue)] = UInt32(COSMO_API_D3D11 | COSMO_API_D3D12) }
             if installed.contains("dxvk"), driverUsable("dxvk") { s[Int(COSMO_BE_DXVK.rawValue)] = UInt32(COSMO_API_D3D9 | COSMO_API_D3D10 | COSMO_API_D3D11) }
+            if installed.contains("vkd3d"), driverUsable("vkd3d") { s[Int(COSMO_BE_VKD3D_PROTON.rawValue)] = UInt32(COSMO_API_D3D12) }
         }
         withUnsafeMutableBytes(of: &inp.failed_here) { buf in
             let f = buf.bindMemory(to: UInt8.self)
@@ -53,6 +61,7 @@ extension Model {
         saveOptions(exe, Model.withoutFallback(opts) + "\n\(Model.fallbackMark) \(history.joined(separator: " ")) crashed; using \(next.name)\nDRIVERS=\(next.set.joined(separator: ","))\n")
         fallbackTried.insert(exe); launchExits[exe] = nil   // a CLI --wait keeps waiting for the retry
         log += "\(name) crashed within 30 s with \(crashed.name) (exit \(code)); trying \(next.name) once. It is remembered if it works.\n"
+        if next.name == "vkd3d" { log += "vkd3d-proton draws Direct3D 12 without D3DMetal but runs at about a third of its speed: lower settings may be needed.\n" }
         launch(exe)
         return true
     }
