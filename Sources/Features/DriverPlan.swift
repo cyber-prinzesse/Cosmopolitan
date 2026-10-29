@@ -43,7 +43,8 @@ extension Model {
         let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
         guard let en = fm.enumerator(atPath: dir) else { return false }
         for case let p as String in en {   // stay inside this program: never a Steam library or Unreal Engine tree
-            if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
+            // cef: Chromium ships its own dxil.dll for its GPU process (Steam's bin/cef/cef.win64): a browser, not a Direct3D 12 game.
+            if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") || (p as NSString).lastPathComponent.lowercased() == "cef" { en.skipDescendants(); continue }
             let name = (p as NSString).lastPathComponent.lowercased()
             let folder = ((p as NSString).deletingLastPathComponent as NSString).lastPathComponent.lowercased()
             if name == "d3d12core.dll", folder == "d3d12" { return true }   // UE5: Binaries/Win64/D3D12/D3D12Core.dll
