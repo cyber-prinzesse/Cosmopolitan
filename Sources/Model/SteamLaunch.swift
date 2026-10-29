@@ -15,18 +15,27 @@ extension Model {
         return (winPath(exe), extraArgs(exe))
     }
 
-    // What Cosmopolitan's Play puts after `-applaunch <id>` for the game (CEF switches, CDPR skip, user ARGS). Not env vars — Steam's
-    // LaunchOptions string can't carry those — and not steam.exe's own `-cef-*`.
+    // What Steam's Play should put in LaunchOptions (not Cosmopolitan's own Play — that still uses LaunchCheck's --launcher-skip).
+    // CDPR: REDlauncher 5.6 draws under Wine with GLES + GPU off (REDprelauncher forwards these); no --launcher-skip / -dx12 here.
+    // Other games: CEF switches + user ARGS. Not env vars — Steam can't carry those.
     func steamLaunchArgs(_ exe: String) -> [String] {
-        var a = extraArgs(exe)
         let dir = (exe as NSString).deletingLastPathComponent
-        if let red = Model.redGame(dir) {
-            a += ["--launcher-skip"] + (red.flag.isEmpty ? [] : [red.flag])
+        var a: [String]
+        if Model.redGame(dir) != nil {
+            a = ["--launcher-used-gl=GLES", "--disable-gpu", "--disable-gpu-compositing"]
+        } else {
+            a = extraArgs(exe)
         }
         if let u = options(exe)["ARGS"], !u.isEmpty {
             a += u.split(separator: " ").map(String.init)
         }
         return a
+    }
+
+    // 1.3.9 wrote CDPR skip into LaunchOptions; treat those strings as Cosmopolitan's so the GLES fix can replace them.
+    nonisolated static func isPriorCosmoSteamLaunchOptions(_ value: String) -> Bool {
+        value == "--launcher-skip" || value == "--launcher-skip -dx11" || value == "--launcher-skip -dx12"
+            || value.hasPrefix("--launcher-skip -dx11 ") || value.hasPrefix("--launcher-skip -dx12 ")
     }
 
     // True when every userdata account already has Cosmopolitan's desired LaunchOptions for this Steam game.
@@ -49,7 +58,7 @@ extension Model {
         let key = "\(bottleOf(exe))/\(steamGames[exe]!.id)"
         guard !steamLaunchPendingWarned.contains(key) else { return }
         steamLaunchPendingWarned.insert(key)
-        let msg = "Steam's own Play button won't skip REDlauncher until Steam restarts; Cosmopolitan's Play works now.\n"
+        let msg = "Steam's own Play button won't get Cosmopolitan's REDlauncher fix until Steam restarts; Cosmopolitan's Play works now.\n"
         logToFile(msg); log += msg
     }
 
@@ -83,8 +92,10 @@ extension Model {
                     }
                     continue
                 }
-                // Non-empty and not exactly what we wrote last time → the user's own text; leave it.
-                if let cur, !cur.isEmpty, cur != last {
+                // Ours if it matches the sidecar, or a prior Cosmopolitan write (1.3.9 --launcher-skip …) — replace those.
+                let ours = cur == last || (cur.map { Model.isPriorCosmoSteamLaunchOptions($0) } ?? false)
+                // Non-empty and not ours → the user's own text; leave it.
+                if let cur, !cur.isEmpty, !ours {
                     let key = "\(bottle)/\(appid)"
                     if !steamLaunchWarned.contains(key) {
                         steamLaunchWarned.insert(key)
