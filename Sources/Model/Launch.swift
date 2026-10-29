@@ -1,10 +1,35 @@
 import SwiftUI
 
 extension Model {
+    // CEF host: PE imports libcef.dll (delay-load included) and that DLL sits beside the exe. Cached like .gfx- (keyed by size+mtime).
+    // steam.exe / steamwebhelper.exe have their own handling and are never treated as generic CEF hosts.
+    func cefHost(_ exe: String) -> Bool {
+        let base = (exe as NSString).lastPathComponent.lowercased()
+        if base == "steam.exe" || base == "steamwebhelper.exe" { return false }
+        let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
+        let attrs = try? fm.attributesOfItem(atPath: exe)
+        let beside = ((try? fm.contentsOfDirectory(atPath: dir)) ?? []).contains { $0.lowercased() == "libcef.dll" }
+        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))|\(beside ? 1 : 0)"
+        let cache = "\(bottlesDir)/\(bottleOf(exe))/options/.cef-\((exe as NSString).lastPathComponent)"
+        if let c = try? String(contentsOfFile: cache, encoding: .utf8), c.hasPrefix(key + "\n") {
+            return c.components(separatedBy: "\n").dropFirst().first == "1"
+        }
+        let yes = beside && exeImports(exe).contains("libcef.dll")
+        try? fm.createDirectory(atPath: (cache as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? "\(key)\n\(yes ? "1" : "0")\n".write(toFile: cache, atomically: true, encoding: .utf8)
+        return yes
+    }
+
+    // Steam: its own -cef-* switches. Other CEF hosts (3DMark, EA, Battle.net, …): Chromium's --disable-gpu… or the window stays black under Wine.
+    // CEF_GPU=1 or an ARGS that already has --disable-gpu leaves the GPU path alone.
     func extraArgs(_ exe: String) -> [String] {
-        guard (exe as NSString).lastPathComponent.lowercased() == "steam.exe" else { return [] }
+        let base = (exe as NSString).lastPathComponent.lowercased()
         // Wine 11 engines draw Steam's window only with its web views on the GPU (GPUAccelWebViewsV3, set in prepare): no GPU-off flags there.
-        return engineIsWine11() ? ["-no-cef-sandbox"] : ["-no-cef-sandbox", "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-cef-disable-d3d11"]
+        if base == "steam.exe" { return engineIsWine11() ? ["-no-cef-sandbox"] : ["-no-cef-sandbox", "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-cef-disable-d3d11"] }
+        if base == "steamwebhelper.exe" { return [] }
+        guard cefHost(exe), options(exe)["CEF_GPU"] != "1" else { return [] }
+        let user = options(exe)["ARGS"] ?? ""
+        return user.contains("--disable-gpu") ? [] : ["--disable-gpu", "--disable-gpu-compositing"]
     }
 
     func winPath(_ exe: String) -> String {
@@ -75,6 +100,8 @@ extension Model {
         if Store.battlenet.exes.contains(where: { exe.hasSuffix("/" + ($0 as NSString).lastPathComponent) }) { battlenetConfig() }   // keeps the launcher on software rendering
         let (cmd, args) = launchCmd(exe)
         log += powerHints()
+        // Drop a leftover driver-fallback pin on steam.exe before prepare reads Options: games inherit Steam's env, so DXVK there breaks DX12.
+        if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe) }
         var need = prepare(exe)
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
         launchedDrivers[exe] = need.drivers ?? driverList(launchEnvRaw(bottleOf(exe)), bottle: bottleOf(exe))

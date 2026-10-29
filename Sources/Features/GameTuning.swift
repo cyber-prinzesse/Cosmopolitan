@@ -42,6 +42,7 @@ extension Model {
             if fm.fileExists(atPath: "\(steamDir)/\(dll)") { try? fm.removeItem(atPath: "\(steamDir)/\(dll).disabled") }
             else { try? fm.moveItem(atPath: "\(steamDir)/\(dll).disabled", toPath: "\(steamDir)/\(dll)") }
         }
+        syncSteamLaunchOptions()   // Steam Play LaunchOptions = Cosmopolitan's per-game args (Steam rewrites localconfig on exit)
     }
 
     // Run with everything prepare() found: runtimes first (winetricks), Steam restart if the driver set changed, then the program.

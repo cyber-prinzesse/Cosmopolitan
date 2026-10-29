@@ -40,6 +40,8 @@ int cosmo_on_battery(void) COSMO_NOEXCEPT;
 // PIDs whose executable path or argv[0] contains `needle` (excluding the caller); later arguments are ignored on purpose. Returns the number written.
 int cosmo_proc_find(const char *needle, int32_t *pids, int cap) COSMO_NOEXCEPT;
 int cosmo_proc_find_in(const char *needle, const char *cwd_under, int32_t *pids, int cap) COSMO_NOEXCEPT;   // …working inside cwd_under
+// PROC_PIDTASKINFO counters for the fault-loop watchdog (cumulative). Returns 0 on success, -1 if no access.
+int cosmo_proc_task_counts(int32_t pid, uint64_t *faults, uint64_t *messages_sent) COSMO_NOEXCEPT;
 
 // ---- Compatibility decision: a pure function over plain values (docs/design/compat-gate.md §3.6). Thread-safe, no I/O. ----
 enum { COSMO_API_DDRAW = 1u << 0, COSMO_API_D3D8 = 1u << 1, COSMO_API_D3D9 = 1u << 2, COSMO_API_D3D10 = 1u << 3, COSMO_API_D3D11 = 1u << 4, COSMO_API_D3D12 = 1u << 5 };
@@ -68,7 +70,7 @@ typedef struct {
     int32_t  error;                         // 0 ok, 1 no input, 2 internal error
 } cosmo_decision;
 cosmo_decision cosmo_decide(const cosmo_decision_input *in) COSMO_NOEXCEPT;
-// Row 12, driver fallback: `crashed` failed this game within 30 s. USE the next backend of DXMT → D3DMetal → DXVK that serves the main
+// Row 12, driver fallback: `crashed` failed this game within 30 s. USE the next backend of DXMT → D3DMetal → DXVK → vkd3d-proton that serves the main
 // API and hasn't failed here; ASK (with that proposal) when the user pinned the crashed one; INCOMPATIBLE with backend NONE when none is left.
 cosmo_decision cosmo_fallback(const cosmo_decision_input *in, int32_t crashed) COSMO_NOEXCEPT;
 // ---- Pre-flight (item 28): what a program needs before it starts, from import names (its own and those of the DLLs beside it), its

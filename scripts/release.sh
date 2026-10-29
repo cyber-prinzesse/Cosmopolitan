@@ -4,7 +4,16 @@
 # override with COSMO_FEED_URL=https://… ). The private key lives in the login Keychain (created by Sparkle/bin/generate_keys).
 set -e; cd "$(dirname "$0")/.."
 export COSMO_VERSION=${COSMO_VERSION:-1.0}; export COSMO_BUILD=${COSMO_BUILD:-$(date +%Y%m%d%H%M)}
+# generate_appcast codesign-checks Sparkle's nested Updater.app; a missing tree (git sparse / accidental delete) used to fail that
+# step inside an `&&` chain that `set -e` ignored, then ship the previous dist/appcast.xml (1.3.6 first publish, 2026-10-29).
+[ -d Sparkle/Sparkle.framework/Versions/B/Updater.app ] || { echo "Sparkle/Sparkle.framework/Versions/B/Updater.app is missing: run \`git checkout -- Sparkle\`"; exit 1; }
 scripts/build.sh
+# Ad-hoc / Developer ID signature must be intact before we zip or feed Sparkle; a broken nest fails here, not after upload.
+codesign --verify --deep --strict Cosmopolitan.app || { echo "Cosmopolitan.app failed codesign --verify --deep --strict: not releasing"; exit 1; }
+# The binary must run on the oldest macOS the app declares (LSMinimumSystemVersion, from MIN in build.sh). 1.3.2 was built on macOS 27
+# without a deployment target, came out minos 27.0 and wouldn't open on 26 (Tahoe); such a build is never released.
+MINOS=$(vtool -show-build Cosmopolitan.app/Contents/MacOS/Cosmopolitan | awk '/minos/{print $2; exit}'); LSMIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Cosmopolitan.app/Contents/Info.plist 2>/dev/null || true)
+[ -n "$MINOS" ] && [ "$MINOS" = "$LSMIN" ] || { echo "Cosmopolitan.app needs macOS ${MINOS:-?} but declares ${LSMIN:-nothing}: not releasing (see MIN in scripts/build.sh)"; exit 1; }
 mkdir -p dist; rm -f "dist/Cosmopolitan-$COSMO_VERSION.zip" "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip"
 ditto -c -k --sequesterRsrc --keepParent Cosmopolitan.app "dist/Cosmopolitan-$COSMO_VERSION.zip"
 # Debug symbols: separate archive, same version. Symbolicate a crash report with:
@@ -22,10 +31,24 @@ rm -rf dist/dmgroot
 REPO=${COSMO_REPO:-cyber-prinzesse/Cosmopolitan}
 # The Keychain lets generate_keys (which created the key) read it but prompts for generate_appcast, which fails when no one can click;
 # so the key is exported to a private temp file for the few seconds of signing and shredded again.
-KEYDIR=$(mktemp -d) && KEYFILE="$KEYDIR/sparkle.key" && ./Sparkle/bin/generate_keys -x "$KEYFILE" >/dev/null   # refuses an existing file
-rm -rf dist/appcast; mkdir -p dist/appcast && cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/ && ./Sparkle/bin/generate_appcast --ed-key-file "$KEYFILE" --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/ && mv dist/appcast/appcast.xml dist/appcast.xml && rm -rf dist/appcast
-rm -P -f "$KEYFILE"; rmdir "$KEYDIR"
+KEYDIR=$(mktemp -d); KEYFILE="$KEYDIR/sparkle.key"; ZIPCHECK=
+# EXIT must shred the EdDSA export (and any zip unpack dir) even if generate_appcast fails under set -e — standalone commands no longer reach a later rm.
+trap 'rm -P -f "$KEYFILE"; rmdir "$KEYDIR" 2>/dev/null; [ -n "$ZIPCHECK" ] && rm -rf "$ZIPCHECK"' EXIT
+./Sparkle/bin/generate_keys -x "$KEYFILE" >/dev/null   # refuses an existing file
+# Drop any leftover feed first so a failed generate_appcast cannot leave yesterday's XML for the greps below (and never hide generate_appcast in `&&`).
+rm -f dist/appcast.xml; rm -rf dist/appcast; mkdir -p dist/appcast
+cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/
+./Sparkle/bin/generate_appcast --ed-key-file "$KEYFILE" --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/
+mv dist/appcast/appcast.xml dist/appcast.xml; rm -rf dist/appcast
 grep -q "sparkle:edSignature" dist/appcast.xml || { echo "appcast is not signed, aborting"; exit 1; }
+# Must be *this* version's enclosure and CFBundleVersion — not a stale feed from a previous release still sitting in dist/.
+grep -q "releases/download/v$COSMO_VERSION/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast.xml || { echo "appcast does not point at v$COSMO_VERSION/Cosmopolitan-$COSMO_VERSION.zip: not releasing"; exit 1; }
+# generate_appcast writes a child element; older feeds sometimes used an enclosure attribute — accept either.
+grep -qE "sparkle:version=\"$COSMO_BUILD\"|<sparkle:version>$COSMO_BUILD</sparkle:version>" dist/appcast.xml || { echo "appcast sparkle:version is not $COSMO_BUILD: not releasing"; exit 1; }
+# The zip is what Sparkle installs; verify the nested app the same way as the build tree (ad-hoc signature must survive ditto).
+ZIPCHECK=$(mktemp -d)
+ditto -x -k "dist/Cosmopolitan-$COSMO_VERSION.zip" "$ZIPCHECK"
+codesign --verify --deep --strict "$ZIPCHECK/Cosmopolitan.app" || { echo "zip's Cosmopolitan.app failed codesign --verify --deep --strict: not releasing"; exit 1; }
 echo "Release $COSMO_VERSION ($COSMO_BUILD):"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.zip        the app (Sparkle update item)"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip   debug symbols (attach to the GitHub release; never inside the app)"

@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--backup-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--steamloop", "--faultloop", "--memcheck", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--steam-exit-sync", "--steam-launch-sync", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--backup-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { _ = logFile; return }   // the window app's fresh log begins at its start, not at its first write
         cliMode = true
         let m = Model()
@@ -19,6 +19,14 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
         switch a[i] {
         case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
+        case "--steam-exit-sync":   // Steam was up → now gone via the background watch path (COSMO_TEST_STEAM_EXIT_DELAY; COSMO_TEST_APP_INACTIVE=1 = app not frontmost)
+            m.log += "status polling active: \(m.statusPollingActive)\n"
+            m.steamExitSyncNow()
+            let wait = m.steamLaunchSyncDelay + 0.5
+            RunLoop.main.run(until: Date().addingTimeInterval(wait))
+        case "--steam-launch-sync":   // Steam already down: same as GUI startup sync (no exit edge)
+            m.syncSteamLaunchOptionsWhileSteamDown()
+            m.log += "steam-launch-sync: done (Steam running: \(m.steamRunning()))\n"
         case "--newbottle": if i + 1 < a.count {   // --newbottle <name>: returns when the bottle is ready (at most 300 s)
             var done = false; let t0 = Date(); m.createBottle(a[i + 1]) { done = true }
             while !done, Date().timeIntervalSince(t0) < 300 { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) }
@@ -53,11 +61,17 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
             if i + 3 < a.count { UserDefaults.standard.set(a[i + 3] == "on", forKey: "compatReports") }
             let r = m.sessionEnded(a[i + 1], seconds: Double(a[i + 2]) ?? 0, ask: { print("ASK: " + $0); return true }, open: { print("WOULD OPEN (browser form, unsubmitted): " + $0.absoluteString.prefix(140)) })
             print("RESULT: " + r) }
+        case "--memcheck": m.freeMemoryBeforePlay()   // test: the check Play runs first (COSMO_TEST_MEMLEVEL fixes the level)
+        case "--steamloop": m.steamLoopCheck(force: true)   // test: Steam's window-loop check on the bottles' webhelper.txt, now
+        case "--faultloop": if i + 1 < a.count, let pid = Int32(a[i + 1]) {   // test: Rosetta fault-loop detector against a pid (stand-in under Rosetta)
+            m.faultLoopCLI(pid: pid, limit: Double(a.count > i + 2 ? a[i + 2] : "35") ?? 35)
+        } else { m.log += "usage: --faultloop <pid> [max seconds, default 35]\n"; cliExitCode = 2 }
         case "--procs": if i + 2 < a.count { m.log += "pids containing \"\(a[i + 2])\": \(procFind(a[i + 2]))  steamRunning: \(m.steamRunning())  controllers: \(nativeControllers())  battery: \(onBattery())\n" }
         case "--padmode": if i + 2 < a.count { let changed = m.ensureControllerMode(for: a[i + 2]); m.log += "changed: \(changed); hidraw disabled now: \(m.hidrawDisabled())\n" }
-        case "--uslayout":   // test: switch to US for 3 s, then restore
-            let before = Model.currentLayoutID(); m.log += "before: \(before)\n"
-            m.log += "select US: \(Model.selectLayout("com.apple.keylayout.US")) → now \(Model.currentLayoutID())\n"
+        case "--uslayout":   // test: switch to the game layout picked from the enabled ones for 3 s, then restore
+            let before = Model.currentLayoutID(); m.log += "before: \(before)  enabled: \(Model.enabledLayoutIDs())\n"
+            let target = Model.gameLayout(current: before) ?? "none"
+            m.log += "select \(target): \(Model.selectLayout(target)) → now \(Model.currentLayoutID())\n"
             Thread.sleep(forTimeInterval: 3); Model.selectLayout(before); m.log += "restored: \(Model.currentLayoutID())\n"
         case "--volumes": m.log += (m.externalVolumes().isEmpty ? "no writable external volumes" : m.externalVolumes().joined(separator: "\n")) + "\n"
         case "--offlineexe": if i + 2 < a.count { m.log += (m.offlineExe(a[i + 2]) ?? "no offline launcher found") + "\n" }

@@ -3,7 +3,7 @@ import SwiftUI
 extension Model {
     // Item 26: a clonefile(2) copy of the whole bottle (one call: 0.5 s for 28 000 files, no extra disk until the bottle diverges) before
     // Repair, a driver switch, a registry sweep, a Windows-version change, installs and the other risky writes. Hidden as
-    // .auto-<bottle>-<stamp>; the newest 3 per bottle are kept. Never a full copy: if cloning fails (another volume, not APFS) there is
+    // .auto-<bottle>-<stamp>; the newest 3 per bottle are kept, for 3 days. Never a full copy: if cloning fails (another volume, not APFS) there is
     // no snapshot and the log says why.
     nonisolated static let snapStamp = "yyyyMMdd-HHmmss"
     @discardableResult nonisolated static func snapshot(_ bottle: String, _ reason: String) -> (path: String?, note: String) {
@@ -30,7 +30,22 @@ extension Model {
         }
     }
     func snapshots() -> [(path: String, when: String, reason: String)] { Model.snapshotList(selected) }
-    @discardableResult nonisolated static func pruneSnapshots(_ bottle: String, keep: Int = 3) -> [String] { discardSnapshots(snapshotList(bottle).dropFirst(keep).map(\.path)) }
+    // A snapshot is the undo for a change that just went wrong, which shows at the next launch or two, so it lives 3 days. Kept longer it
+    // costs: macOS's Storage settings count every clone at the bottle's full size (three of a 97 GB Steam bottle showed as 425 GB of
+    // "Applications" on 2026-10-28, for 0.7 GB they really held), and each game update since makes it hold the replaced files for real.
+    nonisolated static let snapMaxAge: TimeInterval = 3 * 86400
+    // `names`: the bottles folder's entries; the age is the stamp in the name (the folder's date changes when Wine writes to the clone).
+    nonisolated static func expiredSnapshots(_ names: [String], now: Date = Date()) -> [String] {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = snapStamp
+        return names.compactMap { n in
+            guard n.hasPrefix(".auto-"), let d = f.date(from: String(n.suffix(snapStamp.count))), now.timeIntervalSince(d) > snapMaxAge else { return nil }
+            return "\(bottlesDir)/\(n)"
+        }
+    }
+    @discardableResult nonisolated static func pruneSnapshots(_ bottle: String, keep: Int = 3) -> [String] {
+        let list = snapshotList(bottle), old = Set(expiredSnapshots(list.map { ($0.path as NSString).lastPathComponent }))
+        return discardSnapshots(list.enumerated().filter { $0.offset >= keep || old.contains($0.element.path) }.map(\.element.path))
+    }
     // Each one is renamed out of the list first (atomic, so a half-deleted snapshot is never offered for a rollback), then deleted in the
     // background; leftovers of an interrupted delete go the next time.
     @discardableResult nonisolated static func discardSnapshots(_ paths: [String]) -> [String] {

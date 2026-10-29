@@ -1,8 +1,11 @@
 import SwiftUI
 
-// Everything shown in the log pane is also appended to ~/Library/Logs/Cosmopolitan.log (truncated on each app start).
+// Everything shown in the log pane is also appended to ~/Library/Logs/Cosmopolitan.log (Cosmopolitan Beta.log for the Beta; begun afresh on each app start).
 let logPath = NSHomeDirectory() + "/Library/Logs/\(appDataName).log"
+let previousLogPath = NSHomeDirectory() + "/Library/Logs/\(appDataName).previous.log"
 let logFile: FileHandle? = {   // the app's start begins a fresh log; command-line runs append, so they never wipe the app's log
+    // The last session's log is kept as Cosmopolitan.previous.log: a session that ended in trouble (and a reopen) can still be read.
+    if !cliMode { try? FileManager.default.removeItem(atPath: previousLogPath); try? FileManager.default.moveItem(atPath: logPath, toPath: previousLogPath) }
     if !cliMode || !FileManager.default.fileExists(atPath: logPath) { FileManager.default.createFile(atPath: logPath, contents: nil) }
     let h = FileHandle(forWritingAtPath: logPath); h?.seekToEndOfFile(); return h
 }()

@@ -11,7 +11,7 @@ func bottleDriverDir(_ bottle: String, _ d: String) -> String {
     return link
 }
 // Environment a bottle's programs are launched with (also used by Dock shortcuts).
-func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {   // drivers: per-launch override of the bottle's DRIVERS
+func launchEnv(_ bottle: String, drivers: [String]? = nil, fullSpeed: Bool = false) -> [String: String] {   // drivers: per-launch override of the bottle's DRIVERS
     // Every Wine run in a bottle (launches and reg/winecfg helpers alike) builds this environment first, so a stale prefix is updated
     // here, without driver slots; otherwise Wine's own automatic update runs inside the first command and copies the drivers in.
     updatePrefixIfStale("\(bottlesDir)/\(bottle)")
@@ -42,9 +42,10 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     let x87 = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_X87SIDECAR"] : nil) ?? x87sidecarPath
     if engineIsWine11(), FileManager.default.fileExists(atPath: x87) { e["ROSETTA_X87_PATH"] = x87 }
     // On battery, in Low Power Mode or thermally throttled (§7.8, item 32): 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales.
-    // Off again when plugged in, Low Power Mode off and cool.
+    // Off again when plugged in, Low Power Mode off and cool; always on for a fanless Mac (Power.swift).
     // D3DM_MAX_FPS only where the installed D3DMetal documents it (4.0 beta); 3.0 ignores it, and the launch check says the cap isn't available.
-    if e["D3DM_MAX_FPS"] == nil, batteryCapWanted() {
+    // FULL_SPEED=1 in a game's options (`fullSpeed`) or the bottle's: never this profile there (a light game that stays cool anyway).
+    if e["D3DM_MAX_FPS"] == nil, !fullSpeed, e["FULL_SPEED"] != "1", batteryCapWanted() {
         if d3dmetalFrameCap() { e["D3DM_MAX_FPS"] = "60" }
         e["DXMT_CONFIG"] = "d3d11.preferredMaxFrameRate=60;d3d11.metalSpatialUpscaleFactor=1.5"
     }
@@ -52,15 +53,22 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // Only the engine's per-slot variables, never plain WINEDLLPATH: tried 2026-10-22, it made DXMT's dxgi/d3d11 the builtin for every
     // process including steamwebhelper (which must stay on Wine's own D3D) → "Steamwebhelper is not responding".
     // Engines without Sikarugir's slots (Highball's Wine 11, GPTK-style) take the same folders as one WINEDLLPATH_PREPEND list.
-    let prepend = engineUsesPrepend(); var front: [String] = []
+    let prepend = engineUsesPrepend(); var front: [String] = []; var useD3DMetal = false
     for d in drivers ?? driverList(e, bottle: bottle) {
         guard let s = driverSlot[d], driverUsable(d) else { continue }   // a driver that can't create a device here would only crash the game
         let dir = bottleDriverDir(bottle, d) + "/wine"   // loaded per launch from the bottle's own drivers/ folder; never copied into system32
         if prepend { front.append(dir) } else { e["WINEDLLPATH_" + s] = dir }
         // libd3dshared dlopen()s this value as-is; the dylibs are reached through the symlinked x86_64-unix path, so @rpath can't find the framework on its own.
-        if d == "d3dmetal" { e["D3DMETAL_FRAMEWORK_PATH"] = "\(driversDir)/d3dmetal/external/D3DMetal.framework/D3DMetal" }
+        if d == "d3dmetal" { e["D3DMETAL_FRAMEWORK_PATH"] = "\(driversDir)/d3dmetal/external/D3DMetal.framework/D3DMetal"; useD3DMetal = true }
+        // vkd3d-proton runs on KosmicKrisp only (this process's Vulkan is KosmicKrisp then, not MoltenVK). Its default feature level is 11_1
+        // there (no sparse residency); 12_1 is what Direct3D 12 games ask for, and GravityMark renders correctly with it.
+        if d == "vkd3d", let icd = kosmicKrispICD() { e["VK_DRIVER_FILES"] = icd; if e["VKD3D_FEATURE_LEVEL"] == nil { e["VKD3D_FEATURE_LEVEL"] = "12_1" } }
     }
     if !front.isEmpty { e["WINEDLLPATH_PREPEND"] = front.joined(separator: ":") }
+    // CrossOver win32u (CW HACK 24905): when CX_ACTIVE_GRAPHICS_BACKEND=d3dmetal, KMTQAITYPE_WDDM_2_7_CAPS reports HwSchEnabled /
+    // HwSchSupported / HwSchEnabledByDefault so DX12 games see GPU scheduling (mapc-engine WineRunner sets this for the same reason).
+    // Dropped if the user's bottle/options already set the variable. (vulkan.c only special-cases the value "wined3d" with CX_LIBVULKAN.)
+    if useD3DMetal, e["CX_ACTIVE_GRAPHICS_BACKEND"] == nil { e["CX_ACTIVE_GRAPHICS_BACKEND"] = "d3dmetal" }
     return e
 }
 

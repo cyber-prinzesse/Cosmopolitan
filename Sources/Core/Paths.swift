@@ -36,7 +36,7 @@ var engineOK: Bool { FileManager.default.fileExists(atPath: wineBin) }   // re-e
 // Drivers live in engines/renderer/<name>/wine; the engine loads a folder's DLLs as builtins when WINEDLLPATH_<slot> points at it.
 // Per-bottle choice is DRIVERS=dxmt,cnc_ddraw in cosmopolitan.env (absent = dxmt). Drop a new renderer folder in and add its slot here.
 let driversDir = support + "/engines/renderer"
-let driverSlot = ["dxmt": "DXMT", "dxvk": "DXVK", "dxvk3": "DXVK", "d9vk": "D9VK", "d3dmetal": "D3DMETAL", "cnc_ddraw": "CNCD"]
+let driverSlot = ["dxmt": "DXMT", "dxvk": "DXVK", "dxvk3": "DXVK", "d9vk": "D9VK", "d3dmetal": "D3DMETAL", "cnc_ddraw": "CNCD", "vkd3d": "VKD3D"]
 // Auto = the set whose DLLs don't overlap: dxmt (d3d10core/d3d11/dxgi), d9vk (d3d8/d3d9), cnc_ddraw (ddraw). D3D12 needs d3dmetal, which
 // replaces dxmt's d3d11/dxgi too, so it stays a manual choice. ponytail: no per-exe import sniffing; games LoadLibrary D3D at runtime anyway.
 let autoDriverSet = ["dxmt", "d9vk", "cnc_ddraw"]

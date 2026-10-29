@@ -19,13 +19,9 @@ extension Model {
            let en = fm.enumerator(atPath: dir), let real = en.compactMap({ $0 as? String }).first(where: { $0.lowercased().hasSuffix("-shipping.exe") || ($0.contains("/Binaries/Win64/") && $0.lowercased().hasSuffix(".exe") && !$0.hasPrefix("Engine/")) }) {
             imps = exeImports("\(dir)/\(real)"); impSrc = "\(dir)/\(real)"
         }
-        // Unreal 5 loads its D3D12 RHI at runtime (no import) but ships the Agility SDK beside the exe: Binaries/Win64/D3D12/D3D12Core.dll.
-        if !imps.contains("d3d12.dll"), let en = fm.enumerator(atPath: dir) {
-            for case let p as String in en {   // stay inside this program: never descend into a Steam library or the Unreal Engine folder
-                if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
-                if p.hasSuffix("D3D12/D3D12Core.dll") { imps.append("d3d12.dll"); break }
-            }
-        }
+        // Agility SDK / DXIL beside the exe: hard evidence of Direct3D 12 — add d3d12.dll so the DX11-default string guard does not drop it.
+        // D3D12CreateDevice alone stays a graphicsAPIs string cue (Witcher 3's DX11 build has it and must keep DXMT).
+        if !imps.contains("d3d12.dll"), runtimeShipsD3D12Files(impSrc) { imps.append("d3d12.dll") }
         let beside = Model.besideImports(adir).subtracting(imps)   // item 28: what the DLLs next to it import
         let local = Set(((try? fm.contentsOfDirectory(atPath: adir)) ?? []).map { $0.lowercased() })
         let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(bottle)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
@@ -65,7 +61,7 @@ extension Model {
         if !plan.apis.isEmpty { parts.append((plan.is32 ? "32-bit " : "64-bit ") + plan.why.joined(separator: ", ")) }
         else if let gfx = [("vulkan-1.dll", "Vulkan"), ("opengl32.dll", "OpenGL")].first(where: { imps.contains($0.0) }) { parts.append(gfx.1) }
         for api in plan.missing { parts.append("\(api) driver not installed for this build") }   // red light: it will not render
-        if batteryCapWanted(), plan.drivers.contains("d3dmetal") || (drivers == nil && plan.apis.contains("Direct3D 12")) {   // honest battery cap
+        if batteryCapWanted(), options(exe)["FULL_SPEED"] != "1", plan.drivers.contains("d3dmetal") || (drivers == nil && plan.apis.contains("Direct3D 12")) {   // honest battery cap
             parts.append(d3dmetalFrameCap() ? "battery: D3DMetal caps this game at 60 fps"
                          : "battery 60 fps cap: not available for this game (D3DMetal \(Model.d3dmetalInfo(driversDir + "/d3dmetal")?.pretty ?? "") has no frame limiter); use the game's own frame limit or vsync")
         }
@@ -123,6 +119,10 @@ extension Model {
         // AVX (§7.2/§4.3): known from the cached disassembly count; Rosetta advertises AVX only to programs that have AVX code.
         if let c = avxCount(exe), c > 500 { n.env["ROSETTA_ADVERTISE_AVX"] = "1"; parts.append("uses AVX (Rosetta AVX on)" + (avx512Count(exe) > 1000 ? "; also has AVX-512 paths, which Rosetta never offers — the game falls back by itself" : "")) }
         else if avxCount(exe) == nil, era.kind == "pe" { parts.append("AVX scan pending") }
+        // CEF host: Chromium's window stays black under Wine unless the GPU path is off (3DMark Demo 2026-10-29; Steam already has its own -cef-*).
+        if cefHost(exe), options(exe)["CEF_GPU"] != "1", !(options(exe)["ARGS"]?.contains("--disable-gpu") ?? false) {
+            parts.append("embedded browser window: drawn without the GPU")
+        }
         // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
         let o = options(exe)
         if let cdpr { n.args += ["--launcher-skip"] + (cdpr.flag.isEmpty ? [] : [cdpr.flag]); parts.append("starts \((cdpr.exe as NSString).lastPathComponent) without REDlauncher") }
@@ -133,7 +133,7 @@ extension Model {
         if engineIsWine11(), ["steam.exe", "steamsetup.exe"].contains(name.lowercased()) { n.env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1" }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
-        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE"].contains(k) { n.env[k] = v }
+        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE", "CEF_GPU"].contains(k) { n.env[k] = v }
         // §7.10 Locale: LANG=ja_JP.UTF-8 (etc.) reaches Wine as-is; CJK locales also get the matching fonts so old games don't show boxes.
         if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
         if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
@@ -191,6 +191,13 @@ extension Model {
                 log += needs12 ? "A Direct3D 12 game is installed: this bottle now runs d3dmetal for Direct3D 10/11/12.\n" : "No Direct3D 12 game left: back to dxmt for Direct3D 10/11.\n"
                 loadSettings(); for p in programs { readiness[p] = launchNeeds(p) }
                 requestSteamRestart("games started from Steam get the new driver set")
+            }
+            // Heal a steam.exe driver-fallback pin left by older builds (games inherit Steam's WINEDLLPATH_*).
+            if let steam = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) {
+                let before = (try? String(contentsOfFile: optionsPath(steam), encoding: .utf8)) ?? ""
+                clearSteamHostDriverFallback(steam)
+                let after = (try? String(contentsOfFile: optionsPath(steam), encoding: .utf8)) ?? ""
+                if before != after, steamRunning(in: bottle) { requestSteamRestart("Steam no longer pins DXVK over this bottle's Direct3D 12 drivers") }
             }
             // A missing driver folder comes back from the pinned template instead of leaving a red light.
             if driverStatus.1.hasPrefix("missing:"), !busy { restoreMissingDrivers() }

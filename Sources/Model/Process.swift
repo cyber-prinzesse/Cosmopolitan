@@ -1,5 +1,10 @@
 import SwiftUI
 
+// Not a failure: Steam exits with 42 once it has applied a client update and started its new copy ("Update complete, launching Steam..."
+// in its bootstrap log). No crash record. driverFallback also refuses steam.exe for any other early exit — a DXVK pin on Steam
+// would leave every Steam Play game without D3DMetal ("Support for DirectX 12 is missing").
+func restartExit(_ exe: String, _ code: Int32) -> Bool { code == 42 && exe.lowercased().hasSuffix("/steam/steam.exe") }
+
 extension Model {
     func exec(_ path: String, _ args: [String], env: [String: String] = [:], block: Bool = true, exe: String? = nil, then: (@MainActor () -> Void)? = nil) {
         if block { busy = true }
@@ -23,16 +28,30 @@ extension Model {
         p.terminationHandler = { t in let code = t.terminationStatus; Task { @MainActor in
             pipe.fileHandleForReading.readabilityHandler = nil
             if block { self.busy = false }
-            self.log += code == 0 ? "[done]\n" : "[failed: exit \(code)]\n"
-            if let exe { self.launchExits[exe] = code; if code != 0 { self.captureCrash(exe, code) } }   // item 34: a crash record for the bug report
+            // Steam -applaunch exits before the game exists; the fault-loop watch keeps polling for the game pid (up to 120 s).
+            if let exe, steamGames[exe] == nil { self.stopFaultLoopWatch(exe) }
+            let failed = code != 0 && !(exe.map { restartExit($0, code) } ?? false)
+            self.log += code == 0 ? "[done]\n" : failed ? "[failed: exit \(code)]\n" : "[exit \(code): restarting itself after an update]\n"
+            if let exe {
+                self.launchExits[exe] = code
+                if failed {
+                    // Fault-loop kill: same crash path as a normal exit, with a headline that names the freeze (and the driver-fallback offer).
+                    let head = self.faultLoopCrash.removeValue(forKey: exe) == true ? "\(appName(exe)) \(Model.faultLoopHeadline)" : nil
+                    self.captureCrash(exe, code, headline: head)
+                } else { self.faultLoopCrash[exe] = nil }
+            }
             // Died right away: within 30 s, one retry with the next driver (item 27); otherwise look for a known cause.
-            if let exe, code != 0, Date().timeIntervalSince(started) < 60, !(Date().timeIntervalSince(started) < 30 && self.driverFallback(exe, code)) { self.triage(exe, code) }
+            if let exe, failed, Date().timeIntervalSince(started) < 60, !(Date().timeIntervalSince(started) < 30 && self.driverFallback(exe, code)) { self.triage(exe, code) }
             then?(); self.refresh() } }
-        do { try p.run() } catch { log += "Failed: \(error)\n"; busy = false }
+        do {
+            try p.run()
+            // Rosetta fault-loop watch: sample the exception-server thread while this program (or its Wine child) runs.
+            if let exe { watchFaultLoop(pid: p.processIdentifier, exe: exe) }
+        } catch { log += "Failed: \(error)\n"; busy = false }
     }
 
     func wine(_ bottle: String, _ args: [String], block: Bool = true, env: [String: String] = [:], drivers: [String]? = nil, exe: String? = nil, then: (@MainActor () -> Void)? = nil) {
         guard engineOK else { log += "Wine engine missing.\n"; return }
-        exec(exe.map(loaderNamed) ?? wineBin, args, env: launchEnv(bottle, drivers: drivers).merging(env) { $1 }, block: block, exe: exe, then: then)
+        exec(exe.map(loaderNamed) ?? wineBin, args, env: launchEnv(bottle, drivers: drivers, fullSpeed: env["FULL_SPEED"] == "1").merging(env) { $1 }, block: block, exe: exe, then: then)
     }
 }

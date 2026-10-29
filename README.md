@@ -60,7 +60,7 @@ latter, the app points to cloud gaming.
 - **DualSense adaptive triggers**: not possible under Wine for XInput games; rumble works through SDL, and games with native DualSense support can get the real pad per game (Options `DUALSENSE=native`).
 - **GOG Galaxy's Windows client**: its Qt 6 interface stays blank under every Direct3D layer available on macOS. Stores… opens or installs GOG's native Mac client instead, and Windows-only GOG games install into the bottle through lgogdownloader.
 
-Built on the Mac side instead of inside Wine: US keyboard layout (macOS input source switched per game), cloud saves (iCloud Drive mirror for non-Steam programs), benchmarking and fps history (Metal HUD read with on-device text recognition), replay clips (rolling system recorder + hotkeys), shared multi-user bottles (/Users/Shared), mods (overlay with backups).
+Built on the Mac side instead of inside Wine: game keyboard layout (switches to a Latin layout you already have, per game), cloud saves (iCloud Drive mirror for non-Steam programs), benchmarking and fps history (Metal HUD read with on-device text recognition), replay clips (rolling system recorder + hotkeys), shared multi-user bottles (/Users/Shared), mods (overlay with backups).
 
 ## Layout
 

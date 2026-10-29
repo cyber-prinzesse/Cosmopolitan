@@ -19,6 +19,11 @@ func procFind(_ needle: String, under dir: String? = nil) -> [Int32] {
     return Array(pids.prefix(Int(n)))
 }
 func isRunning(_ needle: String) -> Bool { !procFind(needle).isEmpty }
+// Whole-process PROC_PIDTASKINFO counters (cumulative) for the fault-loop watchdog.
+func procTaskCounts(_ pid: Int32) -> (faults: UInt64, messagesSent: UInt64)? {
+    var f: UInt64 = 0, m: UInt64 = 0
+    return cosmo_proc_task_counts(pid, &f, &m) == 0 ? (f, m) : nil
+}
 // Item 28: what a program needs, decided in C++ from its imports (and those of the DLLs beside it), bitness and .NET header.
 func preflight(_ imports: [String], is32: Bool, clr: Bool) -> cosmo_preflight_result { cosmo_preflight(imports.joined(separator: ","), is32 ? 1 : 0, clr ? 1 : 0) }
 // PE facts + imports, lower-cased. `imports` = normal + delay-load (so graphics-API detection still sees a delay-loaded d3d12);

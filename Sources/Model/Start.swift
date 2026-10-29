@@ -15,6 +15,7 @@ extension Model {
         focusAutomation(exe); pauseInBackground(exe, anticheat: need.anticheat != nil); trackPlaytime(exe); scanUntrusted(exe); forceKeyboardLayout(exe); replay(exe)
         cloudSync(exe, phase: "pull"); if options(exe)["CLOUD_SAVES"] == "1" { whenExits(exe) { self.cloudSync(exe, phase: "push") } }
         shaderSync(exe, phase: "pull"); whenExits(exe) { self.shaderSync(exe, phase: "push") }
+        if steamGames[exe] != nil { warnSteamLaunchOptionsPending(exe) }   // Steam up + LaunchOptions not synced yet: say once, don't restart
         if steamGames[exe] != nil || exe.lowercased().hasSuffix("/steam/steam.exe"), !steamRunning() { tuneSteam() }   // Steam is down: safe to edit its config
         // Steam games inherit the env of the *running* Steam, so a per-launch driver change needs Steam restarted with it.
         if restartSteam {
