@@ -90,7 +90,11 @@ import Network
     // Steam of one bottle (default: the selected one). Wine keeps each process's working folder on its Windows current directory, so this
     // bottle's Steam, and every game it starts, works inside the bottle; another bottle's Steam doesn't count. libproc, no ps.
     func steamRunning(in bottle: String? = nil) -> Bool { Model.steamRunning(bottle ?? selected) }
-    nonisolated static func steamRunning(_ bottle: String) -> Bool { !bottle.isEmpty && !procFind("Steam\\steam.exe", under: realPath("\(bottlesDir)/\(bottle)")).isEmpty }
+    nonisolated static func steamRunning(_ bottle: String) -> Bool {
+        // Test build: COSMO_TEST_STEAM_RUNNING=1 pretends Steam is up (LaunchOptions sync must not write then).
+        if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_STEAM_RUNNING"] == "1" { return !bottle.isEmpty }
+        return !bottle.isEmpty && !procFind("Steam\\steam.exe", under: realPath("\(bottlesDir)/\(bottle)")).isEmpty
+    }
     // Stop this bottle's Steam: ask politely; if it is still up after 20 s (it sometimes ignores -shutdown), stop this bottle's Wine programs
     // (its own wineserver). Never another bottle's Steam: this used to pkill every steam.exe on the Mac.
     func stopSteam(_ bottle: String? = nil) async {
