@@ -12,7 +12,18 @@ extension Model {
             // Args after -applaunch <id> are forwarded to the game; Steam keeps its own -cef-* on steam.exe.
             return (winPath(steam), extraArgs(steam) + ["-applaunch", g.id] + extraArgs(exe))
         }
+        // Ubisoft Connect on a Wine 11 engine: its window stays blank unless Chromium draws inside upc.exe itself (in-process, in
+        // software); the UbisoftConnect.exe stub doesn't pass switches on, so start upc.exe the way the stub does, plus the switches.
+        if engineIsWine11(), let upc = ubisoftClient(exe) { return (winPath(upc), ["-upc_desktop_mode"] + Model.ubisoftCEFSwitches + extraArgs(exe)) }
         return (winPath(exe), extraArgs(exe))
+    }
+
+    // Item 3: measured on r29 — default start: blank window; with these: the login page (as on CrossOver). Wine 10 stays blank either way.
+    static let ubisoftCEFSwitches = ["--no-sandbox", "--in-process-gpu", "--disable-gpu"]
+    func ubisoftClient(_ exe: String) -> String? {
+        guard ["ubisoftconnect.exe", "upc.exe"].contains((exe as NSString).lastPathComponent.lowercased()) else { return nil }
+        let upc = (exe as NSString).deletingLastPathComponent + "/upc.exe"
+        return FileManager.default.fileExists(atPath: upc) ? upc : nil
     }
 
     // What Steam's Play should put in LaunchOptions (not Cosmopolitan's own Play — that still uses LaunchCheck's --launcher-skip).

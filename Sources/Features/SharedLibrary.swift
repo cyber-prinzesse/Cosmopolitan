@@ -4,7 +4,7 @@ import SwiftUI
 // Game files are shared once; Wine keeps saves per macOS user automatically (drive_c/users/<username>). Options and the Wine
 // registry are per bottle, so they are shared too — the honest limit of a shared prefix.
 extension Model {
-    nonisolated static var sharedRoot: String { isTestBuild ? support + "/shared-bottles" : "/Users/Shared/Cosmopolitan Bottles" }   // the test build never sees real shared bottles
+    nonisolated static var sharedRoot: String { isTestBuild ? support + "/shared-bottles" : "/Users/Shared/\(appDataName) Bottles" }   // the test build never sees real shared bottles
     func shareBottle() {
         let name = selected, src = "\(bottlesDir)/\(name)", dst = "\(Model.sharedRoot)/\(name)"
         guard !name.isEmpty, (try? FileManager.default.destinationOfSymbolicLink(atPath: src)) == nil else { log += "Share: \(name) is already a link (shared or on a drive).\n"; return }

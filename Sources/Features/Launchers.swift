@@ -4,7 +4,7 @@ import SwiftUI
 // Cosmopolitan to play the game (cosmopolitan://launch?name=…), so every start goes through the launch checks. Kept in sync with the
 // Library (launchers of games that are gone are removed; only ours, marked in their Info.plist, are ever touched). Spotlight finds them.
 extension Model {
-    nonisolated static var launchersDir: String { NSHomeDirectory() + "/Applications/Cosmopolitan Apps" }
+    nonisolated static var launchersDir: String { NSHomeDirectory() + "/Applications/\(appDataName) Apps" }
     nonisolated static let launcherMark = "CosmopolitanLauncher"
     func syncLaunchers() {
         let games = library.map { (name: appName($0), icon: icons[$0].flatMap { $0.tiffRepresentation }.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }) }

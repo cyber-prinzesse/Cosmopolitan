@@ -28,7 +28,16 @@ enum Store: String, CaseIterable, Identifiable {
         case .epic: return ["Program Files/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe", "Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe"]
         }
     }
-    var args: [String] { self == .epic ? ["-SkipBuildPatchPrereq"] : [] }   // the launcher otherwise insists on installing redistributables it cannot under Wine
+    var args: [String] {
+        switch self {
+        case .epic: return ["-SkipBuildPatchPrereq"]   // the launcher otherwise insists on installing redistributables it cannot under Wine
+        // Wine 11 (measured on r29; the launcher passes these on to Battle.net.exe): Chromium draws inside Battle.net.exe on SwiftShader GL,
+        // as CrossOver starts it; and V8 keeps its flags page writable. Frozen, libcef's VirtualProtect(PAGE_READONLY) CHECKs that the
+        // page was PAGE_READWRITE, which r29 doesn't report, so every renderer stops on int3 and the login spins. Each alone isn't enough.
+        case .battlenet where engineIsWine11(): return ["--in-process-gpu", "--use-gl=swiftshader", "--js-flags=--no-freeze-flags-after-init"]
+        default: return []
+        }
+    }
 }
 
 extension Model {
@@ -122,7 +131,9 @@ extension Model {
         var cfg = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: p)))) as? [String: Any] ?? [:]
         var client = cfg["Client"] as? [String: Any] ?? [:]
         var streaming = client["Streaming"] as? [String: Any] ?? [:]
-        streaming["StreamingEnabled"] = "false"; client["Streaming"] = streaming; client["HardwareAcceleration"] = "false"; cfg["Client"] = client
+        // Wine 11: leave hardware acceleration alone. Off, battle.net.dll adds disable-gpu, Chromium moves to SwiftShader over Vulkan
+        // (SwANGLE), which can't initialise here, and the window spins forever; Store.battlenet.args picks SwiftShader GL instead.
+        streaming["StreamingEnabled"] = "false"; client["Streaming"] = streaming; client["HardwareAcceleration"] = engineIsWine11() ? nil : "false"; cfg["Client"] = client
         try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
         if let d = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: URL(fileURLWithPath: p)) }
     }

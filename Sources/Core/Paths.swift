@@ -2,7 +2,11 @@ import SwiftUI
 
 // Engine: open-source Wine 10.0 (Sikarugir build) kept in our own folder. No CodeWeavers code.
 // ponytail: Wine 11.x Staging renders Steam's UI black on macOS 27 (client surface detached); stay on 10.0 until that's fixed upstream.
-let support = NSHomeDirectory() + "/Library/Application Support/Cosmopolitan"
+// Cosmopolitan Beta (bundle id local.cosmopolitan.beta): the Wine 11 engine on copies of the bottles, next to the everyday app. A Wine 11
+// upgrade of a bottle can't be undone, so everything named after the app gets its own place: data, log, shortcuts, shared/cloud/clip folders.
+let isBetaBuild = Bundle.main.bundleIdentifier == "local.cosmopolitan.beta"
+let appDataName = isBetaBuild ? "Cosmopolitan Beta" : "Cosmopolitan"
+let support = NSHomeDirectory() + "/Library/Application Support/\(appDataName)"
 // Test build (bundle id ending in ".test", made by tests/lib/testenv.sh): its own settings domain and a throwaway home from COSMO_TEST_HOME.
 let isTestBuild = Bundle.main.bundleIdentifier?.hasSuffix(".test") == true
 // Called first thing at startup. Sets HOME and CFFIXED_USER_HOME to the throwaway folder (NSHomeDirectory() follows only the latter), then
@@ -16,12 +20,18 @@ func enterTestModeIfNeeded() {
     func inside(_ p: String) -> Bool { let r = URL(fileURLWithPath: p).resolvingSymlinksInPath().path; return r == realHome || r.hasPrefix(realHome + "/") }
     for p in [support, bottlesDir, logPath, Model.sharedRoot] where inside(p) { die("refusing to start: \(p) is inside your real home \(realHome).") }
 }
-// The engine is a setting (Settings › Engine); 10.0_8 is the tested default. Pinned there because 11.x renders Steam black on macOS 27.
-let defaultEngine = "WS12WineSikarugir10.0_8"
+// The engine is a setting (Settings › Engine). The everyday app defaults to Wine 10 (10.0_8, tested; 11.x Staging renders Steam black on
+// macOS 27). The Beta defaults to Highball's Wine 11 once that engine is in its engines folder, and to Wine 10 until then: first-run setup
+// can only install the pinned Wine 10 (Components.swift), so a fresh Beta still gets a working engine.
+let wine10Engine = "WS12WineSikarugir10.0_8"
+let wine11Engine = "highball-11.0-r29"
+var defaultEngine: String { isBetaBuild && engineIsWine11(wine11Engine) ? wine11Engine : wine10Engine }
 var engineName: String { UserDefaults.standard.string(forKey: "engine") ?? defaultEngine }
 var engineDir: String { support + "/engines/\(engineName)/wswine.bundle" }
 var wineBin: String { engineDir + "/bin/wine" }
 let bottlesDir = support + "/bottles"
+// athei's x87sidecar (MIT) — the ARM64 x87 JIT that speeds up 32-bit code under Rosetta on Wine 11 engines (see LaunchEnvironment).
+let x87sidecarPath = support + "/x87sidecar"
 var engineOK: Bool { FileManager.default.fileExists(atPath: wineBin) }   // re-evaluated: first-run setup installs it while the app runs
 // Drivers live in engines/renderer/<name>/wine; the engine loads a folder's DLLs as builtins when WINEDLLPATH_<slot> points at it.
 // Per-bottle choice is DRIVERS=dxmt,cnc_ddraw in cosmopolitan.env (absent = dxmt). Drop a new renderer folder in and add its slot here.

@@ -58,7 +58,7 @@ func cleanUp(bottles: [String]) -> String {
         freedKB += max(0, before - size(NSHomeDirectory() + "/Library/Caches/Homebrew"))
     }
     // The app's own log: keep the last 2 MB once it passes 5 MB.
-    let logPath = NSHomeDirectory() + "/Library/Logs/Cosmopolitan.log"
+    let logPath = NSHomeDirectory() + "/Library/Logs/\(appDataName).log"
     if let d = fm.contents(atPath: logPath), d.count > 5_000_000 { try? d.suffix(2_000_000).write(to: URL(fileURLWithPath: logPath)); freedKB += Int64(d.count - 2_000_000) / 1024 }
 
     fm.createFile(atPath: support + "/.cleanup", contents: nil)

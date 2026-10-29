@@ -126,6 +126,11 @@ extension Model {
         // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
         let o = options(exe)
         if let cdpr { n.args += ["--launcher-skip"] + (cdpr.flag.isEmpty ? [] : [cdpr.flag]); parts.append("starts \((cdpr.exe as NSString).lastPathComponent) without REDlauncher") }
+        // Steam on a Wine 11 engine: its web helper's GPU process draws into steam.exe's window, which DXMT allows only when asked (with
+        // GPU web views on and no GPU-off flags: Steam's sign-in window after 85 s; without it none in 600 s). Steam games inherit it.
+        // SteamSetup.exe too: its "Run Steam" starts steam.exe itself, which then inherits this; without it the sign-in window can't
+        // get a swap chain (SwapChain11::reset 0x80004005, eglCreateWindowSurface EGL_BAD_ALLOC) and Steam runs with no window.
+        if engineIsWine11(), ["steam.exe", "steamsetup.exe"].contains(name.lowercased()) { n.env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1" }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
         for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE", "CEF_GPU"].contains(k) { n.env[k] = v }
@@ -141,10 +146,15 @@ extension Model {
         if !n.runtimes.isEmpty { parts.append("installs " + n.runtimes.map { $0.pin.name }.joined(separator: ", ") + " from Microsoft first") }
         if !verbs.isEmpty { parts.append(winetricks == nil ? "needs \(verbs.joined(separator: " ")) — brew install winetricks to fetch automatically" : "fetching \(verbs.joined(separator: " ")) via winetricks") }
         if !unknown.isEmpty { parts.append("missing DLLs: " + unknown.joined(separator: ", ")) }
+        // Item 3: on Wine 11 Battle.net starts with Store.battlenet.args (Chromium in-process, V8 flags left writable) — say so.
+        if engineIsWine11(), Store.battlenet.exes.contains(where: { exe.hasSuffix("/" + $0) }) { parts.append("starts Battle.net with Chromium in-process for Wine 11") }
+        // Item 3: Ubisoft Connect's window draws only on a Wine 11 engine (launchCmd starts upc.exe with Chromium in-process); Wine 10: blank.
+        let ubiWine10 = ubisoftClient(exe) != nil && !engineIsWine11()
+        if ubisoftClient(exe) != nil { parts.append(ubiWine10 ? "Ubisoft Connect's window stays blank on Wine 10 — it draws on the Wine 11 engine (Settings › Engine)" : "starts upc.exe with Chromium in-process, so its window draws") }
         n.note = imps.isEmpty && parts.isEmpty ? "" : "Launch check \(name): " + (imps.isEmpty ? "" : "\(imps.count) DLLs") + (parts.isEmpty ? ", all available" : (imps.isEmpty ? "" : " — ") + parts.joined(separator: "; ")) + "\n"
         n.verbs = winetricks == nil ? [] : verbs
         // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
-        let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
+        let red = !unknown.isEmpty || ubiWine10 || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
         let yellow = !verbs.isEmpty || !n.runtimes.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
         n.needsDotNet = !dotnet.isEmpty
         n.status = red || dotnet == "bad" ? .red : yellow || dotnet == "pending" ? .yellow : .green

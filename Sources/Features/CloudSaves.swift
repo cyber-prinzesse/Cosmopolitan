@@ -3,7 +3,7 @@ import SwiftUI
 // §5.5 Cloud saves for non-Steam programs (Steam games already have Steam Cloud): the game's save folders inside the bottle are mirrored to
 // iCloud Drive › Cosmopolitan Saves › <program>. Newer side wins: pulled before launch, pushed when the program exits. Opt-in: CLOUD_SAVES=1.
 extension Model {
-    var cloudRoot: String { NSHomeDirectory() + "/Library/Mobile Documents/com~apple~CloudDocs/Cosmopolitan Saves" }
+    var cloudRoot: String { NSHomeDirectory() + "/Library/Mobile Documents/com~apple~CloudDocs/\(appDataName) Saves" }
     // Where Windows programs keep saves: AppData Local/LocalLow/Roaming/<name>, Documents/My Games/<name>, Saved Games/<name>, and the program's own folder's "Saves".
     func saveFolders(_ exe: String) -> [String] {
         let name = appName(exe), u = "\(bottlesDir)/\(selected)/drive_c/users/\(NSUserName())", fm = FileManager.default
