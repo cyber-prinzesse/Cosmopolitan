@@ -208,6 +208,8 @@ import Network
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.noteSteamRunningState() } }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor(); self?.steamLoopCheck() } }
+        // Steam already down at launch: no running→gone edge, so apply LaunchOptions once now (Steam Play / REDlauncher skip).
+        if !cliMode { syncSteamLaunchOptionsWhileSteamDown() }
     }
 
     // Status UI polling stays frontmost-only. Test: COSMO_TEST_APP_INACTIVE=1 pretends the app is in the background.

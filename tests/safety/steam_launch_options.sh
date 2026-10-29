@@ -135,5 +135,15 @@ o1=$(opts "$ST/userdata/111/config/localconfig.vdf"); o2=$(opts "$ST/userdata/22
 fmt_ok "$ST/userdata/111/config/localconfig.vdf" >/dev/null || fail "formatting wrong after Steam exit sync"
 print -r -- "ok: Steam exited while Cosmopolitan inactive → LaunchOptions written (background watch)"
 
+# 7. Steam already down (no exit edge): startup-style sync still writes LaunchOptions.
+rm -f "$(tprefix S)/options/.steamlaunch-292030"
+mkcfg "$ST/userdata/111/config/localconfig.vdf"
+mkcfg "$ST/userdata/222/config/localconfig.vdf"
+out=$(ct --steam-launch-sync S 2>&1)
+o1=$(opts "$ST/userdata/111/config/localconfig.vdf"); o2=$(opts "$ST/userdata/222/config/localconfig.vdf")
+[[ "$o1" == "--launcher-skip -dx12" && "$o2" == "--launcher-skip -dx12" ]] || fail "steam-launch-sync (already down): 111='$o1' 222='$o2'"
+[[ "$(cat "$(tprefix S)/options/.steamlaunch-292030")" == "--launcher-skip -dx12" ]] || fail "sidecar missing after steam-launch-sync"
+print -r -- "ok: Steam already down → startup sync wrote LaunchOptions"
+
 tw_check || fail "your real data changed"
 print "PASS steam_launch_options"

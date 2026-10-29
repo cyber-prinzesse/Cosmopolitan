@@ -120,6 +120,14 @@ extension Model {
         isTestBuild ? Double(ProcessInfo.processInfo.environment["COSMO_TEST_STEAM_EXIT_DELAY"] ?? "") ?? 2 : 2
     }
 
+    // Apply LaunchOptions for every bottle whose Steam is not running (startup / already-down; no exit edge to observe).
+    func syncSteamLaunchOptionsWhileSteamDown() {
+        for b in bottles where !steamRunning(in: b) {
+            steamSeenRunning[b] = false
+            syncSteamLaunchOptions(bottle: b)
+        }
+    }
+
     // Track running → not running per bottle; after Steam exits, wait for localconfig settle then sync LaunchOptions (covers any Steam starter).
     func noteSteamRunningState() {
         for b in bottles {
