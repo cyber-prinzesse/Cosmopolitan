@@ -182,6 +182,13 @@ extension Model {
                 loadSettings(); for p in programs { readiness[p] = launchNeeds(p) }
                 requestSteamRestart("games started from Steam get the new driver set")
             }
+            // Heal a steam.exe driver-fallback pin left by older builds (games inherit Steam's WINEDLLPATH_*).
+            if let steam = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) {
+                let before = (try? String(contentsOfFile: optionsPath(steam), encoding: .utf8)) ?? ""
+                clearSteamHostDriverFallback(steam)
+                let after = (try? String(contentsOfFile: optionsPath(steam), encoding: .utf8)) ?? ""
+                if before != after, steamRunning(in: bottle) { requestSteamRestart("Steam no longer pins DXVK over this bottle's Direct3D 12 drivers") }
+            }
             // A missing driver folder comes back from the pinned template instead of leaving a red light.
             if driverStatus.1.hasPrefix("missing:"), !busy { restoreMissingDrivers() }
         }

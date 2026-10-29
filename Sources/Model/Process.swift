@@ -1,7 +1,8 @@
 import SwiftUI
 
 // Not a failure: Steam exits with 42 once it has applied a client update and started its new copy ("Update complete, launching Steam..."
-// in its bootstrap log). No crash record, and above all no driver fallback, which would move Steam to another driver for good.
+// in its bootstrap log). No crash record. driverFallback also refuses steam.exe for any other early exit — a DXVK pin on Steam
+// would leave every Steam Play game without D3DMetal ("Support for DirectX 12 is missing").
 func restartExit(_ exe: String, _ code: Int32) -> Bool { code == 42 && exe.lowercased().hasSuffix("/steam/steam.exe") }
 
 extension Model {
