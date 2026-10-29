@@ -123,12 +123,16 @@ extension Model {
         // AVX (§7.2/§4.3): known from the cached disassembly count; Rosetta advertises AVX only to programs that have AVX code.
         if let c = avxCount(exe), c > 500 { n.env["ROSETTA_ADVERTISE_AVX"] = "1"; parts.append("uses AVX (Rosetta AVX on)" + (avx512Count(exe) > 1000 ? "; also has AVX-512 paths, which Rosetta never offers — the game falls back by itself" : "")) }
         else if avxCount(exe) == nil, era.kind == "pe" { parts.append("AVX scan pending") }
+        // CEF host: Chromium's window stays black under Wine unless the GPU path is off (3DMark Demo 2026-10-29; Steam already has its own -cef-*).
+        if cefHost(exe), options(exe)["CEF_GPU"] != "1", !(options(exe)["ARGS"]?.contains("--disable-gpu") ?? false) {
+            parts.append("embedded browser window: drawn without the GPU")
+        }
         // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
         let o = options(exe)
         if let cdpr { n.args += ["--launcher-skip"] + (cdpr.flag.isEmpty ? [] : [cdpr.flag]); parts.append("starts \((cdpr.exe as NSString).lastPathComponent) without REDlauncher") }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
-        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE"].contains(k) { n.env[k] = v }
+        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE", "CEF_GPU"].contains(k) { n.env[k] = v }
         // §7.10 Locale: LANG=ja_JP.UTF-8 (etc.) reaches Wine as-is; CJK locales also get the matching fonts so old games don't show boxes.
         if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
         if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
