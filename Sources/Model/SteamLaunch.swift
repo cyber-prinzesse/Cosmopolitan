@@ -2,6 +2,8 @@ import SwiftUI
 
 // Per-session: don't spam the log when Steam already has the user's own LaunchOptions for a game.
 private var steamLaunchWarned: Set<String> = []
+// Per-session: one-shot "Steam's Play won't skip REDlauncher until Steam restarts" while LaunchOptions are still missing.
+private var steamLaunchPendingWarned: Set<String> = []
 
 extension Model {
     func launchCmd(_ exe: String) -> (String, [String]) {
@@ -27,12 +29,37 @@ extension Model {
         return a
     }
 
+    // True when every userdata account already has Cosmopolitan's desired LaunchOptions for this Steam game.
+    func steamLaunchOptionsApplied(_ exe: String) -> Bool {
+        guard let g = steamGames[exe] else { return true }
+        let desired = steamLaunchArgs(exe).joined(separator: " ")
+        if desired.isEmpty { return true }
+        let bottle = bottleOf(exe), steamDir = "\(bottlesDir)/\(bottle)/drive_c/Program Files (x86)/Steam"
+        let users = (try? FileManager.default.contentsOfDirectory(atPath: "\(steamDir)/userdata")) ?? []
+        guard !users.isEmpty else { return true }
+        return users.allSatisfy { u in
+            guard let s = try? String(contentsOfFile: "\(steamDir)/userdata/\(u)/config/localconfig.vdf", encoding: .utf8) else { return false }
+            return Model.vdfLaunchOptions(s, appid: g.id) == desired
+        }
+    }
+
+    // Play while Steam is up and LaunchOptions aren't synced yet: say once that Steam's own Play needs a Steam restart (don't restart for them).
+    func warnSteamLaunchOptionsPending(_ exe: String) {
+        guard steamGames[exe] != nil, steamRunning(), !steamLaunchOptionsApplied(exe) else { return }
+        let key = "\(bottleOf(exe))/\(steamGames[exe]!.id)"
+        guard !steamLaunchPendingWarned.contains(key) else { return }
+        steamLaunchPendingWarned.insert(key)
+        let msg = "Steam's own Play button won't skip REDlauncher until Steam restarts; Cosmopolitan's Play works now.\n"
+        logToFile(msg); log += msg
+    }
+
     // Write Cosmopolitan's per-game args into every userdata/*/config/localconfig.vdf as LaunchOptions, so Steam's own Play button matches.
     // Only while this bottle's Steam is down (Steam rewrites the file on exit). Sidecar options/.steamlaunch-<appid> remembers our last write
     // so a later change replaces only our value; a non-empty LaunchOptions that isn't ours is left alone.
-    func syncSteamLaunchOptions(for only: String? = nil) {
-        guard !steamRunning() else { return }
-        let bottle = selected, steamDir = "\(bottlesDir)/\(bottle)/drive_c/Program Files (x86)/Steam", fm = FileManager.default
+    func syncSteamLaunchOptions(for only: String? = nil, bottle: String? = nil) {
+        let bottle = bottle ?? selected
+        guard !bottle.isEmpty, !steamRunning(in: bottle) else { return }
+        let steamDir = "\(bottlesDir)/\(bottle)/drive_c/Program Files (x86)/Steam", fm = FileManager.default
         let targets: [(exe: String, id: String, name: String)]
         if let only, let g = steamGames[only] { targets = [(only, g.id, g.name)] }
         else { targets = steamGames.compactMap { exe, g in bottleOf(exe) == bottle ? (exe, g.id, g.name) : nil } }
@@ -85,6 +112,37 @@ extension Model {
                 wroteSide = true
             }
             if !wroteSide, desired.isEmpty, last != nil { try? fm.removeItem(atPath: side) }
+        }
+    }
+
+    // Settle delay after steam.exe is gone before editing localconfig (Steam rewrites it on exit). Test: COSMO_TEST_STEAM_EXIT_DELAY seconds (default 2).
+    var steamLaunchSyncDelay: Double {
+        isTestBuild ? Double(ProcessInfo.processInfo.environment["COSMO_TEST_STEAM_EXIT_DELAY"] ?? "") ?? 2 : 2
+    }
+
+    // Track running → not running per bottle; after Steam exits, wait for localconfig settle then sync LaunchOptions (covers any Steam starter).
+    func noteSteamRunningState() {
+        for b in bottles {
+            let up = steamRunning(in: b)
+            let was = steamSeenRunning[b] ?? false
+            steamSeenRunning[b] = up
+            if was && !up { scheduleSteamLaunchSync(b) }
+        }
+    }
+
+    // Pretend Steam was up then call noteSteamRunningState (CLI/tests: --steam-exit-sync). Real watch uses the 5 s status timer.
+    func steamExitSyncNow() {
+        guard !selected.isEmpty else { return }
+        steamSeenRunning[selected] = true
+        noteSteamRunningState()
+    }
+
+    func scheduleSteamLaunchSync(_ bottle: String) {
+        let delay = steamLaunchSyncDelay
+        Task { @MainActor in
+            if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            guard !steamRunning(in: bottle) else { return }
+            syncSteamLaunchOptions(bottle: bottle)
         }
     }
 }
