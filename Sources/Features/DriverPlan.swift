@@ -29,7 +29,8 @@ extension Model {
     func runtimeShipsD3D12Files(_ exe: String) -> Bool {
         let fm = FileManager.default
         let attrs = try? fm.attributesOfItem(atPath: exe)
-        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))"
+        // "|2": answers cached before cef folders were skipped (steam.exe said yes from Chromium's dxil.dll) are worked out again.
+        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))|2"
         let cache = "\(bottlesDir)/\(bottleOf(exe))/options/.dx12-\((exe as NSString).lastPathComponent)"
         if let c = try? String(contentsOfFile: cache, encoding: .utf8), c.hasPrefix(key + "\n") {
             return c.components(separatedBy: "\n").dropFirst().first == "1"
