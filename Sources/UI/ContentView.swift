@@ -155,9 +155,9 @@ struct ContentView: View {
                             ForEach(m.programs, id: \.self) { p in
                                 Button { m.launch(p) } label: {
                                     VStack {
-                                        // Cover art from Steam's CDN when cached (artVersion bumps on arrival), the exe's own icon otherwise.
-                                        Image(nsImage: (m.artPath(p).flatMap { NSImage(contentsOfFile: $0) }) ?? m.icons[p] ?? NSWorkspace.shared.icon(for: .applicationBundle))
-                                            .resizable().interpolation(.high).scaledToFit().frame(width: 64, height: 64).id(m.artVersion)
+                                        // Cover from Model.coverImage (cached); avoid decoding the JPEG on every body pass while scrolling.
+                                        Image(nsImage: m.coverImage(p))
+                                            .resizable().interpolation(.high).scaledToFit().frame(width: 64, height: 64)
                                             .overlay(alignment: .topTrailing) {   // pre-verification light; hover for the reason
                                                 if let r = m.readiness[p] { Circle().fill(r.status).frame(width: 12, height: 12).overlay(Circle().stroke(.black.opacity(0.4))).offset(x: 4, y: -4) }
                                             }
@@ -218,7 +218,7 @@ struct ContentView: View {
                         Button("Bug report") { m.copyBugReport() }
                             .help("Copies a report with log, engine, drivers and Mac details to the clipboard, with your username and home folder removed.")
                     }.controlSize(.small)
-                    ScrollView { Text(m.log).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
+                    ScrollView { Text(m.logView).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
                         .padding(8).frame(height: 160).background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }.padding(14).glassCard().padding(10)
             }

@@ -162,10 +162,12 @@ extension Model {
     }
 
     // Pre-verification: run the launch check for every tile after a scan, so problems show before anyone clicks Play.
+    // Starts after a turn of the run loop so the Library can paint its first frame first (50 tiles: scan was ~0.3 s; verify was the rest).
     func verifyAll() {
         let bottle = selected
         guard FileManager.default.fileExists(atPath: "\(bottlesDir)/\(bottle)/drive_c") else { return }
         Task { @MainActor in
+            await Task.yield()
             for p in library {   // every bottle's games: the launch check works per game (item 39)
                 noteExeChange(p); readiness[p] = launchNeeds(p); await Task.yield()
             }

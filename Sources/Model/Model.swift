@@ -5,7 +5,11 @@ import Network
     @Published var bottles: [String] = []
     @Published var selected = ""
     @Published var programs: [String] = []
-    @Published var log = engineOK ? "" : "Wine engine not found at \(wineBin)\n"
+    // Full session log (CLI / bug report). The Advanced pane paints `logView`, refreshed at most ~4×/s so each `log +=` does not
+    // re-layout a multi‑megabyte Text on the main thread (measured: every append invalidated the Advanced ScrollView).
+    @Published var log = engineOK ? "" : "Wine engine not found at \(wineBin)\n" { didSet { scheduleLogView() } }
+    @Published private(set) var logView = engineOK ? "" : "Wine engine not found at \(wineBin)\n"
+    private var logViewWork: DispatchWorkItem?
     @Published var busy = false
     var launchExits: [String: Int32] = [:]   // exit code of each program started with exe: (the CLI's --launch --wait polls this)
     var launchOutputToLog = false            // CLI --wait: program output goes to the log file, not a pipe, so it survives the CLI exiting
@@ -75,6 +79,7 @@ import Network
     var faultLoopCrash: [String: Bool] = [:]                      // terminationHandler: use the fault-loop crash headline
     @Published var healthProblems: [HealthProblem] = []           // found by the start-up health check (item 35)
     @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
+    var artCache: [String: NSImage] = [:]              // decoded covers / icons; avoid NSImage(contentsOfFile:) per body during scroll
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
     @Published var showSetup = false           // first-run setup sheet
     @Published var setupRunning = false
@@ -218,6 +223,25 @@ import Network
         return NSApp?.isActive != false
     }
 
+    // Coalesce log UI updates: many subsystems append in bursts (winetricks, scan); painting every line was the Advanced-pane hitch.
+    func scheduleLogView() {
+        logViewWork?.cancel()
+        let w = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let s = self.log
+            let next = s.count > 49_152 ? String(s.suffix(49_152)) : s
+            if next != self.logView { self.logView = next }
+        }
+        logViewWork = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: w)
+    }
+    // Cover for a Library / Advanced tile: Steam art when cached, else the exe icon. Decoded once per path.
+    func coverImage(_ exe: String) -> NSImage {
+        if let c = artCache[exe] { return c }
+        let img = artPath(exe).flatMap { NSImage(contentsOfFile: $0) } ?? icons[exe] ?? NSWorkspace.shared.icon(for: .applicationBundle)
+        artCache[exe] = img
+        return img
+    }
     func refresh() {
         linkSharedBottles()
         let all = (try? FileManager.default.contentsOfDirectory(atPath: bottlesDir)) ?? []
