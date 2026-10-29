@@ -23,6 +23,43 @@ func rendererDLLs(_ d: String, is32: Bool) -> Set<String> {   // an unusable dri
 }
 
 extension Model {
+    // Runtime Direct3D 12 when the PE does not import d3d12.dll. Adapted from abduzeedo/mapc-engine GraphicsProbe.swift (Apache-2.0;
+    // see THIRD_PARTY_NOTICES.md): Agility SDK `d3d12/d3d12core.dll`, `dxil.dll` / `dxilconv*.dll`, or the string `D3D12CreateDevice`
+    // in the exe or UnityPlayer.dll. Cached like .gfx- (size|mtime).
+    func runtimeLoadsD3D12(_ exe: String) -> Bool {
+        let fm = FileManager.default
+        let attrs = try? fm.attributesOfItem(atPath: exe)
+        let key = "\(attrs?[.size] as? Int ?? 0)|\(Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0))"
+        let cache = "\(bottlesDir)/\(bottleOf(exe))/options/.dx12-\((exe as NSString).lastPathComponent)"
+        if let c = try? String(contentsOfFile: cache, encoding: .utf8), c.hasPrefix(key + "\n") {
+            return c.components(separatedBy: "\n").dropFirst().first == "1"
+        }
+        let yes = Model.probeRuntimeD3D12(exe)
+        try? fm.createDirectory(atPath: (cache as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try? "\(key)\n\(yes ? "1" : "0")\n".write(toFile: cache, atomically: true, encoding: .utf8)
+        return yes
+    }
+    nonisolated static func probeRuntimeD3D12(_ exe: String) -> Bool {
+        let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
+        let needle = Data("D3D12CreateDevice".utf8)
+        func hasCreateDevice(_ path: String) -> Bool {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) else { return false }
+            return data.range(of: needle) != nil
+        }
+        if hasCreateDevice(exe) { return true }
+        let unity = dir + "/UnityPlayer.dll"
+        if fm.fileExists(atPath: unity), hasCreateDevice(unity) { return true }
+        guard let en = fm.enumerator(atPath: dir) else { return false }
+        for case let p as String in en {   // stay inside this program: never a Steam library or Unreal Engine tree
+            if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
+            let name = (p as NSString).lastPathComponent.lowercased()
+            let folder = ((p as NSString).deletingLastPathComponent as NSString).lastPathComponent.lowercased()
+            if name == "d3d12core.dll", folder == "d3d12" { return true }
+            if name == "dxil.dll" || (name.hasPrefix("dxilconv") && name.hasSuffix(".dll")) { return true }
+        }
+        return false
+    }
+
     // Graphics APIs the program uses. The string scan is cached per exe (keyed by size + date) because it reads tens of MB.
     func graphicsAPIs(_ exe: String, imports: [String]) -> [String] {
         let fm = FileManager.default, dir = (exe as NSString).deletingLastPathComponent
