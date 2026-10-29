@@ -21,6 +21,9 @@ func procFind(_ needle: String, under dir: String? = nil) -> [Int32] {
 func isRunning(_ needle: String) -> Bool { !procFind(needle).isEmpty }
 // Rosetta exception-server CPU (user+system ns) for `pid`; nil when the process has no such thread (native) or we can't read it.
 func rosettaExcCPUNs(_ pid: Int32) -> Int64? { let n = cosmo_rosetta_exc_cpu_ns(pid); return n >= 0 ? n : nil }
+// Whole-process CPU (user+system ns) for the fault-loop dominance check; nil when unreadable.
+func procCPUNs(_ pid: Int32) -> Int64? { let n = cosmo_proc_cpu_ns(pid); return n >= 0 ? n : nil }
+func procThreadCount(_ pid: Int32) -> Int { let n = cosmo_proc_thread_count(pid); return n >= 0 ? Int(n) : 99 }
 // Item 28: what a program needs, decided in C++ from its imports (and those of the DLLs beside it), bitness and .NET header.
 func preflight(_ imports: [String], is32: Bool, clr: Bool) -> cosmo_preflight_result { cosmo_preflight(imports.joined(separator: ","), is32 ? 1 : 0, clr ? 1 : 0) }
 // PE facts + imports, lower-cased. `imports` = normal + delay-load (so graphics-API detection still sees a delay-loaded d3d12);

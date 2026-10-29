@@ -6,6 +6,7 @@
 #include <IOKit/ps/IOPSKeys.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <libproc.h>
+#include <mach/mach_time.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
 #include <string>
@@ -127,4 +128,29 @@ static int64_t rosetta_exc_cpu_ns(int32_t pid) {
 }
 extern "C" int64_t cosmo_rosetta_exc_cpu_ns(int32_t pid) noexcept {
     try { test_throw(); return rosetta_exc_cpu_ns(pid); } catch (...) { return -1; }
+}
+
+// PROC_PIDTASKINFO times are mach absolute-time ticks; convert to ns so they match thread info / the watchdog ratio.
+static int64_t proc_cpu_ns(int32_t pid) {
+    if (pid <= 0) return -1;
+    struct proc_taskinfo ti; memset(&ti, 0, sizeof ti);
+    if (proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &ti, (int)sizeof ti) <= 0) return -1;
+    static mach_timebase_info_data_t tb; static bool tb_ok = false;
+    if (!tb_ok) { tb_ok = mach_timebase_info(&tb) == KERN_SUCCESS; if (!tb_ok) return -1; }
+    uint64_t ticks = ti.pti_total_user + ti.pti_total_system;
+    return (int64_t)(ticks * tb.numer / tb.denom);
+}
+extern "C" int64_t cosmo_proc_cpu_ns(int32_t pid) noexcept {
+    try { test_throw(); return proc_cpu_ns(pid); } catch (...) { return -1; }
+}
+
+static int32_t proc_thread_count(int32_t pid) {
+    if (pid <= 0) return -1;
+    uint64_t tids[512];
+    int nb = proc_pidinfo(pid, PROC_PIDLISTTHREADS, 0, tids, (int)sizeof tids);
+    if (nb <= 0) return -1;
+    return (int32_t)(nb / (int)sizeof(uint64_t));
+}
+extern "C" int32_t cosmo_proc_thread_count(int32_t pid) noexcept {
+    try { test_throw(); return proc_thread_count(pid); } catch (...) { return -1; }
 }

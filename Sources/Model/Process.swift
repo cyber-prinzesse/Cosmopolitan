@@ -27,7 +27,8 @@ extension Model {
         p.terminationHandler = { t in let code = t.terminationStatus; Task { @MainActor in
             pipe.fileHandleForReading.readabilityHandler = nil
             if block { self.busy = false }
-            if let exe { self.stopFaultLoopWatch(exe) }
+            // Steam -applaunch exits before the game exists; the fault-loop watch keeps polling for the game pid (up to 120 s).
+            if let exe, steamGames[exe] == nil { self.stopFaultLoopWatch(exe) }
             let failed = code != 0 && !(exe.map { restartExit($0, code) } ?? false)
             self.log += code == 0 ? "[done]\n" : failed ? "[failed: exit \(code)]\n" : "[exit \(code): restarting itself after an update]\n"
             if let exe {
