@@ -104,12 +104,15 @@ struct OutlineButtonStyle: ButtonStyle {
 
 // The circular Liquid Glass button (Tools, Settings) — the one round element. Chromatic aberration on hover/focus. Needs a VoiceOver label.
 struct CircularGlassButton: View {
-    let systemImage: String, label: String, action: () -> Void
+    let systemImage: String, label: String
+    var spinning = false   // Refresh: the glyph turns while the scan runs (TimelineView, so it stops for sure — no repeatForever)
+    let action: () -> Void
     @State private var hover = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     var body: some View {
         Button(action: action) {
+            TimelineView(.animation(paused: !spinning || reduceMotion)) { t in
             ZStack {
                 if hover && !reduceMotion {   // RGB split on hover (never on text) — the Aberration Ark signature
                     glyph(Cosmo.textPrimary).colorMultiply(Color(hex: 0xFF4040)).offset(x: -1.2)
@@ -117,6 +120,8 @@ struct CircularGlassButton: View {
                     glyph(Cosmo.textPrimary).colorMultiply(Color(hex: 0x4060FF)).offset(x: 1.2)
                 }
                 glyph(Cosmo.textPrimary).opacity(hover && !reduceMotion ? 0.0 : 1)
+            }
+            .rotationEffect(.degrees(spinning && !reduceMotion ? t.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1) * 360 : 0))
             }
             .frame(width: 34, height: 34).contentShape(Circle())
         }

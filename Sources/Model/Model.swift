@@ -75,6 +75,7 @@ import Network
     @Published var problem: (game: String, text: String)? = nil  // a problem in plain words, shown with a Fix button
     @Published var settingUp: Set<String> = []                    // games whose first start is installing what they need
     @Published var askD3DMetal = false                            // Fix this game: Apple's toolkit is the user's step, its sheet opens
+    @Published var refreshing = false                             // Library › Refresh: rescan running (the button spins)
     @Published var activity = ""                                  // one plain sentence about what is happening (no raw log in the Library)
     let pathMonitor = NWPathMonitor()
     var launchedDrivers: [String: [String]] = [:]                // the driver set each program last started with (driver fallback)

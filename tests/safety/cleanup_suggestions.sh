@@ -15,8 +15,8 @@ mk "$(tprefix Z)/installers/SteamSetup.exe" 2; mk "$C/windows/temp/w.tmp" 1; mk 
 list=$(ct --cleanup-suggestions 2>&1 | grep '^could go: ')
 print -r -- "$list" | sed 's/^/  /'
 order=$(print -r -- "$list" | sed -n 's/^could go: [0-9]* \([A-Za-z]*\).*/\1/p' | tr '\n' ' ')
-[[ "$list" == *"(Steam app 777)"* && "$list" != *"(Steam app 888)"* && "$list" == *"Leftover installer SteamSetup.exe"* && "$list" == *"Windows temp files (Z)"* && "$list" == *"Temp files of Windows user $U (Z)"* ]] || fail "wrong list"
-[[ "$order" == "Shader Temp Leftover Windows "* ]] || fail "not biggest first: $order"
+[[ "$list" == *"(Steam app 777)"* && "$list" != *"(Steam app 888)"* && "$list" == *"Leftover installer SteamSetup.exe"* && "$list" == *"Windows temp files (bottle Z)"* && "$list" != *"Windows user"* ]] || fail "wrong list"
+[[ "$order" == "Shader Windows Leftover "* ]] || fail "not biggest first: $order"
 print "ok: biggest first, the installed game's cache (app 888) not offered"
 out=$(ct --cleanup-suggestions --apply 2>&1 | grep 'nothing deleted'); [[ -n "$out" && -f "$A/shadercache/777/cache.bin" ]] || fail "--apply without --yes deleted something"
 print "ok: without confirmation nothing is deleted ($out)"
@@ -25,7 +25,7 @@ print '#include <windows.h>\nint main(void) { Sleep(60000); return 0; }' > "$T/s
 twine Z 'C:\sleeper.exe' >/dev/null 2>&1 &
 poll 30 pgrep -f 'sleeper\.exe' || fail "the sleeper did not start"
 out=$(ct --cleanup-suggestions --apply --yes 2>&1)
-[[ ! -e "$A/shadercache/777" && ! -e "$(tprefix Z)/installers/SteamSetup.exe" && -f "$C/windows/temp/w.tmp" && "$out" == *"Kept Windows temp files (Z): a program is running there."* ]] || fail "with a program running: $(print -r -- "$out" | grep -E 'Kept|Freed')"
+[[ ! -e "$A/shadercache/777" && ! -e "$(tprefix Z)/installers/SteamSetup.exe" && -f "$C/windows/temp/w.tmp" && "$out" == *"Kept Windows temp files (bottle Z): a program is running there."* ]] || fail "with a program running: $(print -r -- "$out" | grep -E 'Kept|Freed')"
 print -r -- "ok: a program running in the bottle → $(print -r -- "$out" | grep -c '^Kept') temp folders kept, the rest removed"
 twineserver Z -k; poll 30 zsh -c '! pgrep -f "sleeper\.exe"' || fail "the sleeper did not stop"
 ct --cleanup-suggestions --apply --yes >/dev/null 2>&1
