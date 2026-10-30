@@ -34,6 +34,18 @@ printf '"AppState"\n{\n\t"appid"\t\t"9"\n\t"name"\t\t"Fake Witcher: Wild \u2014 
 ct --status Q >/dev/null 2>&1
 grep -qx $'fakew.exe\tFake Witcher: Wild \u2014 Hunt' "$(tprefix Q)/options/dock-names.txt" || fail "dock-names.txt lacks the Steam game: $(cat "$(tprefix Q)/options/dock-names.txt" 2>&1)"
 print "ok: scan wrote the Steam game's Dock name to options/dock-names.txt"
+# CDPR: launcher-configuration.json → game exe gets the Steam title; shared REDlauncher.exe (outside the game folder) → "REDlauncher".
+W="$S/common/The Witcher 3"; mkdir -p "$W/bin/x64_dx12"
+cp "$(tprefix Q)/drive_c/windows/system32/notepad.exe" "$W/REDprelauncher.exe"
+cp "$(tprefix Q)/drive_c/windows/system32/notepad.exe" "$W/bin/x64_dx12/witcher3.exe"
+print '{"fallback":"DirectX 12","executables":[{"description":"DirectX 12","executable":{"directoryPath":"bin\\\\x64_dx12","fileName":"witcher3.exe"}}]}' > "$W/launcher-configuration.json"
+printf '"AppState"\n{\n\t"appid"\t\t"292030"\n\t"name"\t\t"The Witcher 3: Wild Hunt \u2014 Remastered"\n\t"installdir"\t\t"The Witcher 3"\n\t"StateFlags"\t\t"4"\n}\n' > "$S/appmanifest_292030.acf"
+ct --status Q >/dev/null 2>&1
+DN="$(tprefix Q)/options/dock-names.txt"
+grep -qx $'redlauncher.exe\tREDlauncher' "$DN" || fail "dock-names.txt lacks shared redlauncher.exe: $(cat "$DN" 2>&1)"
+grep -qx $'witcher3.exe\tThe Witcher 3: Wild Hunt \u2014 Remastered' "$DN" || fail "dock-names.txt lacks witcher3.exe: $(cat "$DN" 2>&1)"
+grep -qx $'redprelauncher.exe\tThe Witcher 3: Wild Hunt \u2014 Remastered' "$DN" || fail "dock-names.txt lacks redprelauncher.exe: $(cat "$DN" 2>&1)"
+print "ok: CDPR layout → redlauncher.exe=REDlauncher, witcher3.exe + redprelauncher.exe = game name"
 twine Q reg delete 'HKCU\Software\Wine\AppDefaults\notepad.exe\Mac Driver' /v NoDockIcon /f >/dev/null 2>&1; twineserver Q -w
 print $'notepad.exe\tSolo Name \u2014 Test' >> "$(tprefix Q)/options/dock-names.txt"
 dock_name() {   # starts notepad in Q, prints its Dock name, stops the bottle

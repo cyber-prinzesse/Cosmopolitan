@@ -79,7 +79,13 @@ extension Model {
             // The process may not be the tile's exe: CD Projekt's launcher starts the game exe from launcher-configuration.json,
             // and Unreal's Game.exe starts Binaries/Win64/Game-Win64-Shipping.exe.
             var exes = [p], dir = (p as NSString).deletingLastPathComponent
-            if let red = Model.redGame(dir) { exes.append(red.exe) }
+            // CDPR: the Steam tile is often REDprelauncher; the game exe is in launcher-configuration.json. REDlauncher.exe
+            // itself lives under AppData\Local\Programs\CD Projekt Red\ (outside the game folder), so it never appears in
+            // `exes` — list it with the shared name "REDlauncher", never a game title (one launcher for Witcher, Cyberpunk, …).
+            if let red = Model.redGame(dir) {
+                exes.append(red.exe)
+                byBottle[bottleOf(p), default: [:]]["redlauncher.exe", default: []].insert("REDlauncher")
+            }
             if let r = p.range(of: "/steamapps/common/") {
                 let root = String(p[..<r.upperBound]) + (p[r.upperBound...].components(separatedBy: "/").first ?? "")
                 exes += ((try? FileManager.default.contentsOfDirectory(atPath: root + "/Binaries/Win64")) ?? []).filter { $0.lowercased().hasSuffix("-shipping.exe") }
