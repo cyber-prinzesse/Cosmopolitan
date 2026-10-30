@@ -21,7 +21,7 @@ testenv_init() {
   T="$(mktemp -d /private/tmp/cosmotest.XXXXXX)" || return 1
   TH="$T/home"; TS="$TH/Library/Application Support/Cosmopolitan"
   mkdir -p "$TS/engines" "$TH/Library/Logs"
-  cp -cR "$TESTENV_REPO/Cosmopolitan.app" "$T/CosmopolitanTest.app"
+  cp -cR "$TESTENV_REPO/build.noindex/Cosmopolitan.app" "$T/CosmopolitanTest.app"
   # Its own settings; never a cosmopolitan:// handler and no update checks (GUI screenshots run it as a normal app).
   TESTID="local.cosmopolitan.${${T:t}#cosmotest.}.test"
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $TESTID" -c "Set :CFBundleName CosmopolitanTest" -c "Delete :CFBundleURLTypes" -c "Set :SUEnableAutomaticChecks false" "$T/CosmopolitanTest.app/Contents/Info.plist"
@@ -80,7 +80,7 @@ _tw_state() {
   done
   if [[ -f "$REAL_LOG" ]]; then print "log-inode: $(stat -f %i "$REAL_LOG")"; fi
   print "steam-pid: $(_tw_real_steam)"
-  print "app-pid: $(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$" | head -1)"
+  print "app-pid: $(pgrep -f "$TESTENV_REPO/build.noindex/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$" | head -1)"
 }
 # Cache markers your running Cosmopolitan app updates by itself (scan results, playtime, AVX counts, the registry ledger), one per file;
 # and every key of your bottles' .reg files, flagged when Cosmopolitan owns it. Both are content hashes (tests/lib/tw.py).
@@ -97,7 +97,8 @@ tw_snapshot() {
 #   cache markers changed while your Cosmopolitan app runs; registry keys changed while your Steam runs (the test is sandboxed, so it
 #   can't have written them) — except keys Cosmopolitan owns (AppDefaults, DllOverrides, the ledger's keys), which always fail.
 # Whether your own Cosmopolitan app or your Steam is running (TW_FAKE_APP / TW_FAKE_STEAM = 0/1 override them, for the rule test only).
-_tw_app_running() { [[ -n "${TW_FAKE_APP:-}" ]] && { [[ "$TW_FAKE_APP" == 1 ]]; return; }; [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; }
+# The everyday app may still live at <repo>/Cosmopolitan.app (updated in place by Sparkle); new builds are in build.noindex/.
+_tw_app_running() { [[ -n "${TW_FAKE_APP:-}" ]] && { [[ "$TW_FAKE_APP" == 1 ]]; return; }; [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|$TESTENV_REPO/build.noindex/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; }
 _tw_steam_running() { [[ -n "${TW_FAKE_STEAM:-}" ]] && { [[ "$TW_FAKE_STEAM" == 1 ]]; return; }; [[ -n "$(_tw_real_steam)" ]]; }
 # Your Steam: the process whose program (the command line's first word) is Steam\steam.exe and whose working folder is inside your real
 # bottles (Wine keeps it on the Windows current directory). Not a steamwebhelper that mentions steam.exe in its arguments, not a test's

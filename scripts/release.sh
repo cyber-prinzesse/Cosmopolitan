@@ -9,23 +9,23 @@ export COSMO_VERSION=${COSMO_VERSION:-1.0}; export COSMO_BUILD=${COSMO_BUILD:-$(
 [ -d Sparkle/Sparkle.framework/Versions/B/Updater.app ] || { echo "Sparkle/Sparkle.framework/Versions/B/Updater.app is missing: run \`git checkout -- Sparkle\`"; exit 1; }
 scripts/build.sh
 # Ad-hoc / Developer ID signature must be intact before we zip or feed Sparkle; a broken nest fails here, not after upload.
-codesign --verify --deep --strict Cosmopolitan.app || { echo "Cosmopolitan.app failed codesign --verify --deep --strict: not releasing"; exit 1; }
+codesign --verify --deep --strict build.noindex/Cosmopolitan.app || { echo "Cosmopolitan.app failed codesign --verify --deep --strict: not releasing"; exit 1; }
 # The binary must run on the oldest macOS the app declares (LSMinimumSystemVersion, from MIN in build.sh). 1.3.2 was built on macOS 27
 # without a deployment target, came out minos 27.0 and wouldn't open on 26 (Tahoe); such a build is never released.
-MINOS=$(vtool -show-build Cosmopolitan.app/Contents/MacOS/Cosmopolitan | awk '/minos/{print $2; exit}'); LSMIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Cosmopolitan.app/Contents/Info.plist 2>/dev/null || true)
+MINOS=$(vtool -show-build build.noindex/Cosmopolitan.app/Contents/MacOS/Cosmopolitan | awk '/minos/{print $2; exit}'); LSMIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' build.noindex/Cosmopolitan.app/Contents/Info.plist 2>/dev/null || true)
 [ -n "$MINOS" ] && [ "$MINOS" = "$LSMIN" ] || { echo "Cosmopolitan.app needs macOS ${MINOS:-?} but declares ${LSMIN:-nothing}: not releasing (see MIN in scripts/build.sh)"; exit 1; }
 mkdir -p dist; rm -f "dist/Cosmopolitan-$COSMO_VERSION.zip" "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip"
-ditto -c -k --sequesterRsrc --keepParent Cosmopolitan.app "dist/Cosmopolitan-$COSMO_VERSION.zip"
+ditto -c -k --sequesterRsrc --keepParent build.noindex/Cosmopolitan.app "dist/Cosmopolitan-$COSMO_VERSION.zip"
 # Debug symbols: separate archive, same version. Symbolicate a crash report with:
 #   atos -o Cosmopolitan.app.dSYM/Contents/Resources/DWARF/Cosmopolitan -arch arm64 -l <load address> <crash addresses>
-mkdir -p dsyms; ditto -c -k --keepParent Cosmopolitan.app.dSYM "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip"
-cp -R Cosmopolitan.app.dSYM "dsyms/Cosmopolitan-$COSMO_VERSION-$COSMO_BUILD.dSYM"   # local archive of every shipped build's symbols
+mkdir -p dsyms; ditto -c -k --keepParent build.noindex/Cosmopolitan.app.dSYM "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip"
+cp -R build.noindex/Cosmopolitan.app.dSYM "dsyms/Cosmopolitan-$COSMO_VERSION-$COSMO_BUILD.dSYM"   # local archive of every shipped build's symbols
 # DMG for first-time downloads (Sparkle updates from the zip): the app plus an Applications shortcut, compressed.
-rm -rf dist/dmgroot "dist/Cosmopolitan-$COSMO_VERSION.dmg"; mkdir -p dist/dmgroot && cp -R Cosmopolitan.app dist/dmgroot/ && ln -s /Applications dist/dmgroot/Applications
+rm -rf dist/dmgroot.noindex "dist/Cosmopolitan-$COSMO_VERSION.dmg"; mkdir -p dist/dmgroot.noindex && cp -R build.noindex/Cosmopolitan.app dist/dmgroot.noindex/ && ln -s /Applications dist/dmgroot.noindex/Applications
 # macOS 26+: `diskutil image` (2 s); hdiutil is deprecated there and stalled for minutes on macOS 27. Older systems fall back to it.
-diskutil image create from dist/dmgroot "dist/Cosmopolitan-$COSMO_VERSION.dmg" --format UDZO --volumeName "Cosmopolitan $COSMO_VERSION" >/dev/null 2>&1 \
-  || hdiutil create -quiet -volname "Cosmopolitan $COSMO_VERSION" -srcfolder dist/dmgroot -ov -format UDZO "dist/Cosmopolitan-$COSMO_VERSION.dmg"
-rm -rf dist/dmgroot
+diskutil image create from dist/dmgroot.noindex "dist/Cosmopolitan-$COSMO_VERSION.dmg" --format UDZO --volumeName "Cosmopolitan $COSMO_VERSION" >/dev/null 2>&1 \
+  || hdiutil create -quiet -volname "Cosmopolitan $COSMO_VERSION" -srcfolder dist/dmgroot.noindex -ov -format UDZO "dist/Cosmopolitan-$COSMO_VERSION.dmg"
+rm -rf dist/dmgroot.noindex
 # Appcast: generate_appcast signs the app zip with the EdDSA key and writes the feed; the enclosure URL points at this version's GitHub release,
 # and the feed itself is served from the *latest* release (SUFeedURL in build.sh), so publishing a release is publishing the update.
 REPO=${COSMO_REPO:-cyber-prinzesse/Cosmopolitan}
