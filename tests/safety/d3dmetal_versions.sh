@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Issue A: D3DMetal's version and features are read from the framework; installing an older or less capable one changes nothing without a
 # yes and lists what would be lost; the installed one is always kept as a backup. Fake toolkits only (no Apple files in tests).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 tw_snapshot
 fail() { print "FAIL: $*"; exit 1; }
 R="$TS/engines/renderer"; rm -rf "$R/d3dmetal" "$TS/d3dmetal-license.json"   # throwaway copies only; start without D3DMetal

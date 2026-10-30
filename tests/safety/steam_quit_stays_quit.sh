@@ -3,7 +3,7 @@
 # 1) Wine Systray Hidden=1 (Sikarugir template) + ShowSystray=false → window-close has nowhere to minimize and Steam reopens the window.
 # 2) Cosmopolitan's pending / in-flight restartSteam after the user Exits → bootstrap_log Shutdown then Startup 7–10 s later with Cosmo's -cef-* flags.
 # Throwaway bottle only: stand-in steam.exe, never the user's Steam bottle.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 

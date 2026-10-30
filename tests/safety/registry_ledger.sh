@@ -2,7 +2,7 @@
 # Phase 0 N3: registry values Cosmopolitan writes are recorded and removed when the setting is gone. Pre-ledger leftovers with our signature
 # are adopted and swept (the .NET test then reports Windows NT instead of Windows 98); a value the user changed is left alone; bottle
 # settings such as Steam's tweaks are never swept.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 AD='HKCU\Software\Wine\AppDefaults'
 rq() { twine L reg query "$1" /v "$2" 2>/dev/null | tr -d '\r' | awk -v n="$2" '$1==n {print $3; f=1} END {if (!f) print "<none>"}'; }

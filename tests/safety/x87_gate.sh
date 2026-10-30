@@ -2,7 +2,7 @@
 # The x87sidecar (athei, MIT) speeds up 32-bit x87 code under Rosetta ~10x, but only Wine 11 engines carry its hook (Highball patch 0012).
 # So ROSETTA_X87_PATH is set only on a Wine 11 engine AND only when the sidecar is installed. Wine 10 must NEVER get it — it has no hook,
 # and its behaviour must be unchanged. (Measured: 32-bit D3D9 6 → 45 fps on r29 with the sidecar; Wine 10 is 31 fps.)
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle G >/dev/null 2>&1

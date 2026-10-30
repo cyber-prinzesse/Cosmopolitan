@@ -2,7 +2,7 @@
 # A fanless Mac (MacBook Air) gets the cooler profile from the start, not only once it is hot: a 60 fps cap and DXMT at 2/3 resolution
 # with MetalFX. FULL_SPEED=1 turns it off for a bottle or a game. Before Play, a Mac short of memory hears which apps use the most and is
 # offered to quit them; the test build never quits anything. Fanless and the memory level are simulated (COSMO_TEST_POWER, _MEMLEVEL).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 tw_snapshot
 fail() { print "FAIL: $*"; exit 1; }
 ct --newbottle B >/dev/null 2>&1; [[ -d "$(tprefix B)/drive_c" ]] || fail "throwaway bottle not created"

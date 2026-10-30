@@ -5,7 +5,7 @@
 # Stand-ins, same layout: launcher-configuration.json (DirectX 12 only); REDprelauncher.exe starts the configured game only with
 # --launcher-skip (exit 4 if that start fails, like the real "Failed to launch game!"), else fails like REDlauncher (exit 3);
 # bin\x64_dx12\witcher3.exe records how it was started; a DLL beside it imports d3d12.dll, like the real game's.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle W >/dev/null 2>&1; [[ -d "$(tprefix W)/drive_c" ]] || fail "throwaway bottle not created"

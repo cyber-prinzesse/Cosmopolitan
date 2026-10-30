@@ -68,6 +68,9 @@ import Network
     var steamRestartEpoch: [String: Int] = [:]          // bumped on user quit so an in-flight restartSteam does not launch Steam again
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
+    var steamIdleDietApplied: [String: Set<Int32>] = [:]   // bottle → webhelper pids currently in Darwin BG (Steam idle diet)
+    var steamIdleDietLogged: Set<String> = []              // once-per-state log keys ("bottle:on" / "bottle:off")
+    var macSteamWarned = false                             // one-time warning when Mac Steam.app runs beside a bottle Steam
     @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)
     /// Other bottle paths for the same library identity (tile shows one; menu can switch). Cleared/refreshed in scan().
     var libraryAlts: [String: [String]] = [:]
@@ -234,7 +237,7 @@ import Network
         // Pad on/off and driver folders change outside the app; re-check every 5 s while the app is active (avoids background IOHIDManager polls while a game runs).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard self?.statusPollingActive == true else { return }; self?.updateStatus() } }
         // Steam LaunchOptions sync: must see quits while Cosmopolitan is in the background (user closes Steam from Steam/game; Steam self-update restart).
-        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.noteSteamRunningState() } }
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.noteSteamRunningState(); self?.steamIdleDietTick() } }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor(); self?.steamLoopCheck() } }
         // Steam already down at launch: no running→gone edge, so apply LaunchOptions once now (Steam Play / REDlauncher skip).

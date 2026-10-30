@@ -2,7 +2,7 @@
 # Steam's Play button uses LaunchOptions in userdata/*/config/localconfig.vdf. For CDPR games Cosmopolitan syncs
 # --launcher-used-gl=GLES --disable-gpu --disable-gpu-compositing (+ user ARGS) so REDlauncher draws under Wine;
 # Cosmopolitan's own Play still uses --launcher-skip via LaunchCheck. Stand-in: REDprelauncher layout.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 

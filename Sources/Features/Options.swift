@@ -21,6 +21,7 @@ extension Model {
     # ARGS=-dx11 -windowed          extra command-line arguments
     # DRIVERS=dxmt,d9vk             driver set for this program (overrides Auto)
     # CEF_GPU=1                     keep Chromium's GPU path (default off for programs that embed libcef.dll — otherwise the window stays black under Wine)
+    # STEAM_IDLE_DIET=0             leave Steam's webhelper at normal priority when hidden or a game is running (default: Darwin background QoS)
     # LANG=ja_JP.UTF-8              run in another locale; ja/zh/ko also install matching fonts
     # MOUSE_CAPTURE=1               keep the cursor inside the game window (camera-heavy games)
     # US_KEYBOARD=1                 switch to a QWERTY Latin layout you already have enabled while this game runs (default; 0 = never)

@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Item 33: a gamepad connecting switches the bottle's controller bus on for games (DisableHidraw=1, SDL on) when it isn't; when it already
 # is, nothing changes. GameController posts the connect notification; --pad-connected runs the same handler.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle P >/dev/null 2>&1; [[ -d "$(tprefix P)/drive_c" ]] || fail "throwaway bottle not created"

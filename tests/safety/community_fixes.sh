@@ -3,7 +3,7 @@
 # ray tracing and frame generation: right with an NVIDIA card on Linux, a crash 1.6 s after start under D3DMetal (2026-10-23). On D3DMetal it
 # isn't applied, and is undone once where it was. And a fix winetricks.log already records isn't run again (each run stops Steam).
 # Steam layout in a throwaway bottle; the fixes are pre-seeded in <bottle>/fixes (fresh for 7 days), so nothing is downloaded.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle S >/dev/null 2>&1; [[ -d "$(tprefix S)/drive_c" ]] || fail "throwaway bottle not created"

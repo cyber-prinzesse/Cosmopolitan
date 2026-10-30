@@ -2,7 +2,7 @@
 # Item 28: the pre-flight scan (rules in C++, cosmo_preflight). Stand-ins in a throwaway bottle: an exe whose engine DLL beside it imports
 # Direct3D 11 (the exe imports none); 64- and 32-bit programs that import the Visual C++ 2015–2022 runtime (the matching runtime is
 # installed first); a .NET program recognised by its CLR header (Cosmopolitan's own probe). Read through the launch check (--check).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle P >/dev/null 2>&1; [[ -d "$(tprefix P)/drive_c" ]] || fail "throwaway bottle not created"

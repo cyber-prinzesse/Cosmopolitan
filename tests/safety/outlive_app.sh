@@ -2,7 +2,7 @@
 # P5 (docs/research/crossover-oracle-findings.md): a program Cosmopolitan started keeps running when the app ends, whether it exits,
 # is terminated (SIGTERM) or force-quit (SIGKILL). The program's output goes into a pipe the app reads (Process.swift); once the app
 # is gone its writes fail, and that must not end it (Wine ignores SIGPIPE). A stand-in prints twice a second on stdout and stderr.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle Q >/dev/null 2>&1; P="$(tprefix Q)"; [[ -d "$P/drive_c" ]] || fail "throwaway bottle not created"

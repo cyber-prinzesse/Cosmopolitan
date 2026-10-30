@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Issue B: on battery, Direct3D 12 games get D3DMetal's documented frame cap only when the installed D3DMetal has it (4.0 beta); with 3.0 the
 # launch check says the cap isn't available and no ignored variable is set. Fake toolkits only; battery simulated in the test build.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 tw_snapshot
 fail() { print "FAIL: $*"; exit 1; }
 R="$TS/engines/renderer"; rm -rf "$R/d3dmetal" "$TS/d3dmetal-license.json"

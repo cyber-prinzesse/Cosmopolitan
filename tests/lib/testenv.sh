@@ -5,7 +5,8 @@
 #                   and COSMO_TEST_HOME all point at it, so the app's support folder, bottles and log live there)
 #   tw_snapshot / tw_check   tripwire over YOUR real data: bottles folder, Cosmopolitan log, Steam bottle, running Steam and app
 #                   (content hashes via tests/lib/tw.py; notes and failures name the changed files, and the keys for .reg files)
-#   testenv_cleanup  stops the throwaway prefixes' wineservers and removes the throwaway folder
+#   testenv_cleanup  kills every process whose executable/argv[0] is under this run's $T/, stops wineservers, removes $T
+#                   (EXIT / INT / TERM — so fail(), Ctrl-C and timeouts cannot leave native stand-ins behind)
 # Nothing here writes outside the throwaway folder. The engine and backends are APFS clones (no extra disk space).
 # testenv_init proves the sandbox on your real files every time it runs (see below). Safe under set -u.
 
@@ -44,6 +45,17 @@ testenv_init() {
   sandbox-exec -p "$(tw_sandbox_profile)" /bin/sh -c ': >> "$1"' sh "$T/sandbox-probe" || { print -u2 "FAIL: sandbox proof: the probe can't write in the throwaway folder either"; return 1; }
   print -u2 "ok: sandbox proof: writes refused for ${#probe} real files (${(j:, :)${probe[@]#$REAL_HOME/}}), allowed in the throwaway folder"
   print "test env: $T"
+  unset TESTENV_CLEANED
+  # Do not trap EXIT here: in zsh an EXIT trap set inside a function runs when the function returns (and would delete $T
+  # before the test starts). Callers arm cleanup with: eval "$(testenv_trap_cleanup)"
+}
+# Arm cleanup in the calling shell: eval "$(testenv_trap_cleanup)" after testenv_init.
+# Must not run `trap … EXIT` (or define TRAPEXIT) inside this function — zsh would fire it when the
+# function returns and delete $T before the test starts. INT/TERM: cleanup then exit (never kill -KILL $$ —
+# in a ( … ) subshell $$ is the outer script). zsh defers traps until a foreground child exits, so
+# long waits should be `sleep N & wait $!` so TERM runs the trap immediately.
+testenv_trap_cleanup() {
+  print -r -- "trap 'testenv_cleanup' EXIT; trap 'testenv_cleanup; exit 130' INT; trap 'testenv_cleanup; exit 143' TERM"
 }
 
 # Every test-build run is sandboxed: writes to your real Cosmopolitan folders, log and Sikarugir folder are impossible for it and for every
@@ -140,14 +152,96 @@ tw_sandbox_profile() {
   print "(version 1)(allow default)(deny file-write* (subpath \"$REAL_SUPPORT\") (literal \"$REAL_LOG\") (subpath \"$REAL_HOME/Applications/Cosmopolitan Apps\") (subpath \"$REAL_HOME/Library/Application Support/Sikarugir\") (subpath \"/opt/homebrew\"))"
 }
 
+# True iff $1 is exactly this run's throwaway root (mktemp /private/tmp/cosmotest.XXXXXX — 6 alnum chars).
+_testenv_t_ok() {
+  emulate -L zsh
+  [[ -n "${1:-}" && "$1" =~ '^/private/tmp/cosmotest\.[A-Za-z0-9]{6}$' ]]
+}
+# pgrep -f pattern for processes under $1. Pure zsh (suffix is alphanumeric — no sed/python escape).
+# Prints the pattern and returns 0, or prints nothing and returns 1 if $1 is unsafe.
+_testenv_kill_pattern() {
+  emulate -L zsh
+  local t="${1:-}"
+  _testenv_t_ok "$t" || return 1
+  local pat="^/private/tmp/cosmotest\\.${t:t:e}/"
+  [[ -n "$pat" && "$pat" == '^/private/tmp/cosmotest\.'* ]] || return 1
+  print -r -- "$pat"
+  return 0
+}
+# True if $1 is this shell, its parent, or an ancestor (never signal those).
+_testenv_is_self_or_ancestor() {
+  emulate -L zsh
+  local want=$1 cur=$$
+  while [[ -n "$cur" && "$cur" -gt 0 ]]; do
+    [[ "$cur" == "$want" ]] && return 0
+    [[ "$cur" == 1 ]] && return 1
+    cur=$(ps -o ppid= -p "$cur" 2>/dev/null | tr -d ' ')
+    [[ -z "$cur" ]] && return 1
+  done
+  return 1
+}
+# PIDs whose command line starts with $1/ (this throwaway only). Empty on any bad input — never a broad match.
+# Re-checks each candidate with ps before accepting. Does not signal.
+_testenv_pids_under_T() {
+  emulate -L zsh
+  local t="${1:-}" pat p cmd puid uid
+  local -a out=()
+  pat=$(_testenv_kill_pattern "$t") || {
+    print -u2 "cleanup: refusing to kill (bad pattern)"
+    return 1
+  }
+  uid=$(id -u)
+  for p in $(pgrep -f "$pat" 2>/dev/null); do
+    [[ "$p" == <-> ]] || continue
+    _testenv_is_self_or_ancestor "$p" && continue
+    cmd=$(ps -o command= -p "$p" 2>/dev/null) || continue
+    [[ "$cmd" == "$t/"* ]] || continue
+    puid=$(ps -o uid= -p "$p" 2>/dev/null | tr -d ' ')
+    [[ "$puid" == "$uid" ]] || continue
+    out+=("$p")
+  done
+  (( ${#out} )) && print -r -- "${out[@]}"
+  return 0
+}
+# Signal only after a fresh ps check that the command still starts with $t/.
+_testenv_kill_checked() {
+  emulate -L zsh
+  local sig=$1 p=$2 t=$3 cmd puid
+  [[ "$p" == <-> && -n "$t" ]] || return 1
+  _testenv_is_self_or_ancestor "$p" && return 1
+  cmd=$(ps -o command= -p "$p" 2>/dev/null) || return 1
+  [[ "$cmd" == "$t/"* ]] || return 1
+  puid=$(ps -o uid= -p "$p" 2>/dev/null | tr -d ' ')
+  [[ "$puid" == "$(id -u)" ]] || return 1
+  kill "-$sig" "$p" 2>/dev/null
+}
 testenv_cleanup() {
   emulate -L zsh
-  [[ -n "${T:-}" && "$T" == /private/tmp/cosmotest.* ]] || return 0
+  [[ -n "${T:-}" ]] || return 0
+  [[ -z "${TESTENV_CLEANED:-}" ]] || return 0
+  TESTENV_CLEANED=1
   [[ -n "${TESTID:-}" ]] && defaults delete "$TESTID" >/dev/null 2>&1   # the test build's own preferences domain, never your app's
+  # Native stand-ins + test app live under $T/; wineserver -k never reaches them. Kill only after strict path checks.
+  local p
+  local -a pids=()
+  if _testenv_t_ok "$T" && _testenv_kill_pattern "$T" >/dev/null; then
+    pids=($(_testenv_pids_under_T "$T" 2>/dev/null))
+    for p in $pids; do _testenv_kill_checked TERM "$p" "$T"; done
+    if (( ${#pids} )); then
+      sleep 2
+      pids=($(_testenv_pids_under_T "$T" 2>/dev/null))
+      for p in $pids; do _testenv_kill_checked KILL "$p" "$T"; done
+    fi
+  else
+    print -u2 "cleanup: refusing to kill (bad pattern)"
+  fi
   local ws="$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" b
-  for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
-  for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done   # gone before the folder is
-  rm -rf "$T"
+  [[ -x "$ws" ]] || ws=""
+  if [[ -n "$ws" && -n "${TS:-}" ]]; then
+    for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
+    for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done   # gone before the folder is
+  fi
+  _testenv_t_ok "$T" && rm -rf "$T"
 }
 # pid of the wineserver serving a throwaway prefix (it holds /tmp/.wine-<uid>/server-<dev>-<ino>/lock), empty if none
 tserverpid() { local p="$(tprefix "$1")"; [[ -d "$p" ]] || return 0; lsof -t "$(printf '/tmp/.wine-%d/server-%x-%x/lock' $(id -u) $(stat -f '%d %i' "$p"))" 2>/dev/null | head -1; }

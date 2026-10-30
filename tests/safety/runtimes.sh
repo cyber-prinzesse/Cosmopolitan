@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Item 14: Microsoft runtimes from Microsoft, pinned (version + SHA-256), installed with the vendor's own silent switches; a wrong download
 # installs nothing; a missing DirectX-only DLL makes the launch check plan the DirectX install instead of reporting an unknown DLL.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 tw_snapshot
 fail() { print "FAIL: $*"; exit 1; }
 native() { [[ -f "$1" ]] && ! grep -q "Wine builtin DLL" "$1"; }

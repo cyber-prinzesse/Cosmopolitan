@@ -4,7 +4,7 @@
 # and U. While T's Steam downloads (an app manifest in a download state) or a game from steamapps\common runs in T, a requested restart
 # waits and says so; once idle it restarts by itself. Starting a Steam game that needs Steam restarted asks first and does nothing on
 # Cancel. Only T's Steam is ever stopped: U's Steam (same Windows path, other bottle) and your own Steam keep running.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 cat > "$T/steam.c" <<'C'

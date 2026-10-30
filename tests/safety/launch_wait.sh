@@ -2,7 +2,7 @@
 # --launch keeps its old fixed-time default (exit 0); --launch … --wait [seconds] returns the program's own exit code, or 124 if it is still
 # running at the limit, and the program keeps running after the CLI stops waiting (its output goes to the log file, not to a pipe that
 # dies with the CLI). The test program prints a tick every 0.5 s for 8 s, writes done.txt and exits with code 7.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle W >/dev/null 2>&1; [[ -d "$(tprefix W)/drive_c" ]] || fail "throwaway bottle not created"

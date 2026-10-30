@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Runtime Direct3D 12 detection (mapc-engine GraphicsProbe ideas): games that load d3d12.dll at run time. Stand-ins with no d3d12
 # import — one embeds D3D12CreateDevice, one ships d3d12/d3d12core.dll. Also CX_ACTIVE_GRAPHICS_BACKEND=d3dmetal when D3DMetal is used.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle D >/dev/null 2>&1; [[ -d "$(tprefix D)/drive_c" ]] || fail "throwaway bottle not created"

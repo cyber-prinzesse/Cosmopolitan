@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Item 34: crash capture. A stand-in prints a marker line and exits with code 5; a crash record appears with the last log lines (the
 # marker), the driver set and the versions, and the bug report attaches it automatically, with your username and home folder removed.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle K >/dev/null 2>&1; [[ -d "$(tprefix K)/drive_c" ]] || fail "throwaway bottle not created"

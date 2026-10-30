@@ -2,7 +2,7 @@
 # Item 29: anti-cheat check. A local AreWeAntiCheatYet list (stand-in for the one fetched at runtime) and a stand-in Steam library: a game
 # AreWeAntiCheatYet lists as Denied (EAC), one as Supported (EAC), one with kernel anti-cheat (Vanguard, Broken), and one it doesn't know
 # that ships BattlEye files. The decision engine (cosmo_anticheat) turns these into red / yellow badges, read through the launch check.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 cat > "$T/games.json" <<'J'

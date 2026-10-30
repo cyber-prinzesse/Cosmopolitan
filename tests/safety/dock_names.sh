@@ -3,7 +3,7 @@
 # to be named after the game ("The Witcher 3- Wild Hunt — Remastered" from ":"→"-"). macOS names the Dock after that file, and children
 # inherit it for the whole Steam session. Loader must be "Steam". Also: sanitize no longer turns ":" into "-"; stale exact copies of
 # bin/wine under old game titles are pruned (never non-wine files).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 

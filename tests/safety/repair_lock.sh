@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Repair lock: one repair per bottle; the kernel releases it when the holder dies; Wine processes started during a repair never
 # inherit it (the lock file is opened O_CLOEXEC). A negative control first shows that this test does detect inheritance.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 held() { python3 -I -c "import fcntl,os,sys; fd=os.open(sys.argv[1], os.O_RDWR)
 try: fcntl.flock(fd, fcntl.LOCK_EX|fcntl.LOCK_NB); print('free')

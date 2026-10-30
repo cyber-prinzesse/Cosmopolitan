@@ -4,7 +4,7 @@
 # - Battle.net Launcher + Battle.net.exe + Battle.net.NNNNN/bdk/BlizzardError → one Battle.net tile, no helpers.
 # - Futuremark/SystemInfo/FMSIScan.exe → never a tile.
 # Also: Unreal bootstrap+shipping, symlink, two bottles, idempotent --find, hidden ids.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 

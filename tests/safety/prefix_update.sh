@@ -5,7 +5,7 @@
 #  A. another program runs there (a sleeper stands in for Steam): nothing is touched, the update finishes in the background;
 #  B. nothing else runs there: the update's leftovers and that prefix's wineserver go.
 # Either way the stamp comes back and the next start updates the prefix. The test build shortens the limit (COSMO_TEST_UPDATE_TIMEOUT).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle U >/dev/null 2>&1; P="$(tprefix U)"; [[ -d "$P/drive_c" ]] || fail "throwaway bottle not created"

@@ -4,7 +4,7 @@
 # the app starts upc.exe directly with those switches (the UbisoftConnect.exe stub doesn't pass switches on) and the launch check
 # says so; on Wine 10 the launch check is red with the reason. "fake11" is a stand-in engine folder with Wine 11's layout; the
 # launch check only reads the exes. (The real draw is measured by evidence/scripts/t3-ubi-redirect.zsh, not here.)
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 mkdir -p "$TS/engines/fake11/wswine.bundle/lib/wine/x86_64-unix"; : > "$TS/engines/fake11/wswine.bundle/lib/wine/x86_64-unix/wine"
