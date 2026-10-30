@@ -116,7 +116,7 @@ extension Model {
     func makeShortcut(_ exe: String, reveal: Bool = true) {
         let png = icons[exe].flatMap { $0.tiffRepresentation }.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }
         log += Model.writeLaunchers(library.filter { $0 != exe }.map { (appName($0), nil) } + [(appName(exe), png)], app: Bundle.main.bundlePath)
-        let app = Model.launchersDir + "/\(appName(exe).replacingOccurrences(of: "/", with: "-")).app"
+        let app = Model.launchersDir + "/\(Model.launcherFileName(appName(exe))).app"
         guard reveal else { return }
         log += "Shortcut: \(app). Drag it to the Dock.\n"
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app)])

@@ -4,7 +4,7 @@
 # without the Gatekeeper prompt; right-click › Open no longer bypasses that prompt on macOS 15 and later.
 set -e; cd "$(dirname "$0")/.."; scripts/build.sh
 S="$HOME/Library/Application Support/Cosmopolitan"; D="dist/stage"; rm -rf dist; mkdir -p "$D/support/engines"
-cp -cR Cosmopolitan.app "$D/"
+cp -cR build.noindex/Cosmopolitan.app "$D/"
 cp -cR "$S/engines/WS12WineSikarugir10.0_8" "$S/engines/renderer" "$S/engines/gstreamer" "$D/support/engines/"
 # D3DMetal is Apple's proprietary software and must never be in a release artifact (see THIRD_PARTY_NOTICES.md).
 rm -rf "$D/support/engines/renderer/d3dmetal" "$D/support/engines/renderer/d3dmetal.old" "$D/support/engines/renderer/d3dmetal.bad"

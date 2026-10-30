@@ -2,6 +2,7 @@
 build/
 Cosmopolitan.app/
 Cosmopolitan.app.dSYM/
+build.noindex/
 dist/
 dsyms/
 

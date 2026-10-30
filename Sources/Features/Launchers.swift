@@ -6,6 +6,13 @@ import SwiftUI
 extension Model {
     nonisolated static var launchersDir: String { NSHomeDirectory() + "/Applications/\(appDataName) Apps" }
     nonisolated static let launcherMark = "CosmopolitanLauncher"
+    // A launcher's file name, which Launchpad and System Settings show: Finder turns ":" into "/" ("The Witcher 3/ Wild Hunt") and
+    // "/" can't be in a name at all. The Beta's launchers say "(Beta)", or two "Steam"s sit side by side. Old names are replaced on
+    // the next sync (they are ours and no longer wanted).
+    nonisolated static func launcherFileName(_ game: String) -> String {
+        let s = game.replacingOccurrences(of: ":", with: "").replacingOccurrences(of: "/", with: "-")
+        return isBetaBuild ? s + " (Beta)" : s
+    }
     func syncLaunchers() {
         let games = library.map { (name: appName($0), icon: icons[$0].flatMap { $0.tiffRepresentation }.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }) }
         let me = Bundle.main.bundlePath
@@ -14,13 +21,13 @@ extension Model {
     nonisolated static func writeLaunchers(_ games: [(name: String, icon: Data?)], app: String) -> String {
         let fm = FileManager.default, dir = launchersDir; try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         var made: [String] = [], gone: [String] = []
-        let wanted = Set(games.map { $0.name.replacingOccurrences(of: "/", with: "-") })
+        let wanted = Set(games.map { launcherFileName($0.name) })
         for f in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where f.hasSuffix(".app") && !wanted.contains(String(f.dropLast(4))) {
             let p = "\(dir)/\(f)"
             if (NSDictionary(contentsOfFile: p + "/Contents/Info.plist")?[launcherMark] as? Bool) == true { try? fm.removeItem(atPath: p); gone.append(String(f.dropLast(4))) }
         }
         for g in games {
-            let safe = g.name.replacingOccurrences(of: "/", with: "-"), p = "\(dir)/\(safe).app"
+            let safe = launcherFileName(g.name), p = "\(dir)/\(safe).app"
             if fm.fileExists(atPath: p + "/Contents/MacOS/launch") { continue }
             try? fm.createDirectory(atPath: p + "/Contents/MacOS", withIntermediateDirectories: true); try? fm.createDirectory(atPath: p + "/Contents/Resources", withIntermediateDirectories: true)
             let url = "cosmopolitan://launch?name=" + (g.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)?.replacingOccurrences(of: "&", with: "%26") ?? g.name)
