@@ -39,7 +39,7 @@ On macOS the GPU driver ships with the OS. Here, "driver" means three things:
 
 | Backend | DirectDraw | D3D8 | D3D9 | D3D10 | D3D11 | D3D12 | 32 / 64-bit | Translates to |
 |---|---|---|---|---|---|---|---|---|
-| D3DMetal (GPTK 3.0, 4.x) | — | — | — | not stated | DX11 per CodeWeavers [U B1]; Apple's Read Me doesn't list APIs | DX12 translation layer [V R3, R4] | 64-bit only (measured: no i386 DLLs in 3.0 or 4.0b3) | Metal; Metal 4 backend in 4.0 beta, default on macOS 27 [V R4] |
+| D3DMetal (GPTK 3.0, 4.x) | — | — | — | not stated | DX11 per a vendor support note [U B1]; Apple's Read Me doesn't list APIs | DX12 translation layer [V R3, R4] | 64-bit only (measured: no i386 DLLs in 3.0 or 4.0b3) | Metal; Metal 4 backend in 4.0 beta, default on macOS 27 [V R4] |
 | DXMT | — | — | — | yes [V B3b] | yes [V B3] | — | both; 32-bit via WoW64 build [V B3b] | Metal [V B3] |
 | DXVK upstream | — | yes | yes | yes | yes [V B4] | — | both [V B4] | Vulkan; ≥ 2.7 can't run on stock MoltenVK (§3.4) |
 | DXVK-macOS (Gcenx) | — | — | removed in 1.10.3-repack [V B5b] | yes | yes [V B5] | — | both [V B5c] | Vulkan via MoltenVK [V B5] |
@@ -473,7 +473,7 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **38 Nightly self-test.** `tests/nightly.sh` runs `tests/run-all.sh` (throwaway homes, isolation guard, sandbox, tripwire) and reports only failures: a notification and the log in `~/Library/Logs/Cosmopolitan self-test/`. `scripts/install-nightly.sh` installs the LaunchAgent `local.cosmopolitan.selftest` (04:00, low priority); `--uninstall` removes it.
 
-**REDprelauncher games (The Witcher 3, Cyberpunk 2077).** The tile's program is CD Projekt's prelauncher; `launcher-configuration.json` names the real game, which the launch check inspects with its own folder's DLLs (The Witcher 3's DirectX 12 build loads Direct3D 12 through NVIDIA Streamline, so only the DLLs beside it show it: D3DMetal). Play adds `--launcher-skip` (and `-dx12`/`-dx11` for the configured build): REDlauncher's Qt Quick window can't get an OpenGL context under this Wine although plain OpenGL 2.1 works, and the prelauncher clears Qt's environment variables, so the launcher can't be helped from outside; it isn't needed to play. Sikarugir's Wine carries CrossOver's rewrite of `…\bin\x64_dx12\witcher3.exe` to `…\bin\x64\witcher3.exe` (the DirectX 11 build, gone from the current DirectX 12-only game): when the engine has that rule and `bin\x64` doesn't exist, Play links `bin\x64` → `x64_dx12` after a snapshot (delete the link to undo).
+**REDprelauncher games (The Witcher 3, Cyberpunk 2077).** The tile's program is CD Projekt's prelauncher; `launcher-configuration.json` names the real game, which the launch check inspects with its own folder's DLLs (The Witcher 3's DirectX 12 build loads Direct3D 12 through NVIDIA Streamline, so only the DLLs beside it show it: D3DMetal). Play adds `--launcher-skip` (and `-dx12`/`-dx11` for the configured build): REDlauncher's Qt Quick window can't get an OpenGL context under this Wine although plain OpenGL 2.1 works, and the prelauncher clears Qt's environment variables, so the launcher can't be helped from outside; it isn't needed to play. Sikarugir's Wine carries a built-in rewrite of `…\bin\x64_dx12\witcher3.exe` to `…\bin\x64\witcher3.exe` (the DirectX 11 build, gone from the current DirectX 12-only game): when the engine has that rule and `bin\x64` doesn't exist, Play links `bin\x64` → `x64_dx12` after a snapshot (delete the link to undo).
 
 ## Sources
 

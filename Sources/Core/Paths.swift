@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Engine: open-source Wine 10.0 (Sikarugir build) kept in our own folder. No CodeWeavers code.
+// Engine: open-source Wine (Sikarugir's Wine 10 build; Cosmos, our own Wine 11 build, in progress) kept in our own folder.
 // ponytail: Wine 11.x Staging renders Steam's UI black on macOS 27 (client surface detached); stay on 10.0 until that's fixed upstream.
 // Cosmopolitan Beta (bundle id local.cosmopolitan.beta): the Wine 11 engine on copies of the bottles, next to the everyday app. A Wine 11
 // upgrade of a bottle can't be undone, so everything named after the app gets its own place: data, log, shortcuts, shared/cloud/clip folders.

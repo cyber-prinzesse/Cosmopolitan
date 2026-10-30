@@ -65,7 +65,7 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil, fullSpeed: Bool = fal
         if d == "vkd3d", let icd = kosmicKrispICD() { e["VK_DRIVER_FILES"] = icd; if e["VKD3D_FEATURE_LEVEL"] == nil { e["VKD3D_FEATURE_LEVEL"] = "12_1" } }
     }
     if !front.isEmpty { e["WINEDLLPATH_PREPEND"] = front.joined(separator: ":") }
-    // CrossOver win32u (CW HACK 24905): when CX_ACTIVE_GRAPHICS_BACKEND=d3dmetal, KMTQAITYPE_WDDM_2_7_CAPS reports HwSchEnabled /
+    // The engine's win32u (hack 24905): when CX_ACTIVE_GRAPHICS_BACKEND=d3dmetal, KMTQAITYPE_WDDM_2_7_CAPS reports HwSchEnabled /
     // HwSchSupported / HwSchEnabledByDefault so DX12 games see GPU scheduling (mapc-engine WineRunner sets this for the same reason).
     // Dropped if the user's bottle/options already set the variable. (vulkan.c only special-cases the value "wined3d" with CX_LIBVULKAN.)
     if useD3DMetal, e["CX_ACTIVE_GRAPHICS_BACKEND"] == nil { e["CX_ACTIVE_GRAPHICS_BACKEND"] = "d3dmetal" }

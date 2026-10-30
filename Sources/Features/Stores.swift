@@ -32,7 +32,7 @@ enum Store: String, CaseIterable, Identifiable {
         switch self {
         case .epic: return ["-SkipBuildPatchPrereq"]   // the launcher otherwise insists on installing redistributables it cannot under Wine
         // Wine 11 (measured on r29; the launcher passes these on to Battle.net.exe): Chromium draws inside Battle.net.exe on SwiftShader GL,
-        // as CrossOver starts it; and V8 keeps its flags page writable. Frozen, libcef's VirtualProtect(PAGE_READONLY) CHECKs that the
+        // as other Mac Wine launchers start it; and V8 keeps its flags page writable. Frozen, libcef's VirtualProtect(PAGE_READONLY) CHECKs that the
         // page was PAGE_READWRITE, which r29 doesn't report, so every renderer stops on int3 and the login spins. Each alone isn't enough.
         case .battlenet where engineIsWine11(): return ["--in-process-gpu", "--use-gl=swiftshader", "--js-flags=--no-freeze-flags-after-init"]
         default: return []
@@ -114,7 +114,7 @@ extension Model {
 
     // Steam under Wine: its web helper must stay on Wine's own Direct3D (DXMT's dxgi crashes it), Steam Input must not grab the pad
     // (its XInput hooks don't work under Wine, so XInput is disabled for steam.exe only), and 96 DPI keeps its window a normal size.
-    // Systray must be on: Steam's window-close minimizes to the tray on Windows; with Wine's tray Hidden (Sikarugir/CrossOver
+    // Systray must be on: Steam's window-close minimizes to the tray on Windows; with Wine's tray Hidden (Sikarugir and similar
     // templates set this), the window has nowhere to go and keeps reopening. The Mac driver shows a menu-bar status item instead.
     // steam.exe gets no Dock icon of its own (NoDockIcon, our Mac-driver patch): Steam's window belongs to steamwebhelper.exe,
     // so without it the Dock shows two "Steam" icons. Engines without the patch ignore the value.

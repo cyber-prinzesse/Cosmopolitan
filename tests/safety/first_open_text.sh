@@ -1,5 +1,5 @@
 #!/bin/zsh
-# P1 (docs/research/crossover-oracle-findings.md): no first-open advice that stopped working. On macOS 15 and later right-click › Open
+# P1 (oracle findings): no first-open advice that stopped working. On macOS 15 and later right-click › Open
 # no longer gets an app that isn't notarized past Gatekeeper; README has the steps that work (Privacy & Security › Open Anyway).
 # Every user-facing text in the repo: a line telling you to right-click and Open, unless it says that no longer works.
 cd "${0:A:h}/../.."

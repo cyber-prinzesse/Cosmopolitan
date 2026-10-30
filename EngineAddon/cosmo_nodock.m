@@ -1,5 +1,5 @@
 /* Cosmopolitan: per-program Dock settings, loaded into each engine's Mac driver (Sikarugir's Wine 10 one can't be rebuilt:
- * D3DMetal and DXMT use its CrossOver-only macdrv_functions). Read from the bottle's user.reg:
+ * D3DMetal and DXMT use its macdrv_functions, which public Wine lacks). Read from the bottle's user.reg:
  *   [Software\\Wine\\AppDefaults\\<exe>\\Mac Driver] "NoDockIcon"="y"   no Dock icon of its own (steam.exe beside its window)
  *                                                    "AppName"="…"      the name macOS shows (Dock, app switcher); a game
  *                                                                        started by Steam otherwise inherits Steam's name

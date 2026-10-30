@@ -239,7 +239,7 @@ extension Model {
         start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && steamRunning())
     }
 
-    // Sikarugir's Wine (CrossOver's table in kernelbase.dll) starts …\bin\x64\witcher3.exe, the DirectX 11 build, whenever
+    // Sikarugir's Wine (an app table in its kernelbase.dll) starts …\bin\x64\witcher3.exe, the DirectX 11 build, whenever
     // …\bin\x64_dx12\witcher3.exe is asked for; the game is DirectX 12 only now, so that start fails. bin\x64 → x64_dx12 makes it the same game.
     func linkWitcherRewrite(_ game: String, _ name: String) {
         let d11 = ((game as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent + "/x64", fm = FileManager.default

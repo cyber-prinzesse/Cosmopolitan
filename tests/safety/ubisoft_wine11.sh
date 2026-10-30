@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Ubisoft Connect (item 3): its main window stays blank on our engines unless Chromium draws inside upc.exe itself; with
-# "--no-sandbox --in-process-gpu --disable-gpu" it draws on a Wine 11 engine (r29, like CrossOver), never on Wine 10. So on Wine 11
+# "--no-sandbox --in-process-gpu --disable-gpu" it draws on a Wine 11 engine (r29, like other Mac Wine 11 launchers), never on Wine 10. So on Wine 11
 # the app starts upc.exe directly with those switches (the UbisoftConnect.exe stub doesn't pass switches on) and the launch check
 # says so; on Wine 10 the launch check is red with the reason. "fake11" is a stand-in engine folder with Wine 11's layout; the
 # launch check only reads the exes. (The real draw is measured by evidence/scripts/t3-ubi-redirect.zsh, not here.)

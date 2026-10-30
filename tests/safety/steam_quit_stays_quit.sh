@@ -10,7 +10,7 @@ tw_snapshot
 # --- 1. Systray: template Hidden cleared when Steam is launched (steamBottleTweaks) ---
 ct --newbottle Q >/dev/null 2>&1; [[ -d "$(tprefix Q)/drive_c" ]] || fail "throwaway bottle Q not created"
 S="$(tprefix Q)/drive_c/Program Files (x86)/Steam"; mkdir -p "$S"
-# Mimic Sikarugir/CrossOver template (user's everyday Steam bottle had both)
+# Mimic the Sikarugir template (user's everyday Steam bottle had both)
 twine Q reg add 'HKCU\Software\Wine\Systray' /v Hidden /t REG_DWORD /d 1 /f >/dev/null 2>&1
 twine Q reg add 'HKCU\Software\Wine\X11 Driver' /v ShowSystray /t REG_SZ /d false /f >/dev/null 2>&1
 hid=$(twine Q reg query 'HKCU\Software\Wine\Systray' /v Hidden 2>/dev/null | tr -d '\r')
