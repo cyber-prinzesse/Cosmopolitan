@@ -27,5 +27,20 @@ t=$(dock_type); [[ "$t" == 'type="Foreground"' ]] || fail "without NoDockIcon no
 twine Q reg add 'HKCU\Software\Wine\AppDefaults\notepad.exe\Mac Driver' /v NoDockIcon /d y /f >/dev/null 2>&1; twineserver Q -w
 t=$(dock_type); [[ "$t" == 'type="UIElement"' ]] || fail "with NoDockIcon notepad should have no Dock icon: $t"
 print "ok: NoDockIcon=y → no Dock icon (UIElement); without it a normal Dock app"
+# Dock names: a Steam game gets its own name in options/dock-names.txt (scan), and the add-on applies a listed name.
+S="$(tprefix Q)/drive_c/Program Files (x86)/Steam/steamapps"; mkdir -p "$S/common/FakeW"
+cp "$(tprefix Q)/drive_c/windows/system32/notepad.exe" "$S/common/FakeW/fakew.exe"
+printf '"AppState"\n{\n\t"appid"\t\t"9"\n\t"name"\t\t"Fake Witcher: Wild \u2014 Hunt"\n\t"installdir"\t\t"FakeW"\n\t"StateFlags"\t\t"4"\n}\n' > "$S/appmanifest_9.acf"
+ct --status Q >/dev/null 2>&1
+grep -qx $'fakew.exe\tFake Witcher: Wild \u2014 Hunt' "$(tprefix Q)/options/dock-names.txt" || fail "dock-names.txt lacks the Steam game: $(cat "$(tprefix Q)/options/dock-names.txt" 2>&1)"
+print "ok: scan wrote the Steam game's Dock name to options/dock-names.txt"
+twine Q reg delete 'HKCU\Software\Wine\AppDefaults\notepad.exe\Mac Driver' /v NoDockIcon /f >/dev/null 2>&1; twineserver Q -w
+print $'notepad.exe\tSolo Name \u2014 Test' >> "$(tprefix Q)/options/dock-names.txt"
+dock_name() {   # starts notepad in Q, prints its Dock name, stops the bottle
+  twine Q notepad.exe >/dev/null 2>&1 &
+  local p="" n="" i; for i in {1..30}; do sleep 0.5; p=$(ps -axo pid=,command= | awk '/notepad\.exe/ && !/awk/ {print $1; exit}'); [[ -n "$p" ]] && n=$(lsappinfo list | awk -v k="pid = $p " '/^ *[0-9]+\) /{l=$0} index($0,k){print l}' | sed -n 's/^ *[0-9]*) "\(.*\)" ASN.*/\1/p'); [[ "$n" == *Solo* ]] && break; done
+  print -r -- "$n"; twineserver Q -k; sleep 1; }
+n=$(dock_name); [[ "$n" == $'Solo Name \u2014 Test' ]] || fail "listed Dock name not applied: '$n'"
+print "ok: the add-on names the program from dock-names.txt ('$n')"
 tw_check
 print "PASS steam_dock_addon"
