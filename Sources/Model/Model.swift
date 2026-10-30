@@ -107,7 +107,13 @@ import Network
     nonisolated static func steamRunning(_ bottle: String) -> Bool {
         // Test build: COSMO_TEST_STEAM_RUNNING=1 pretends Steam is up (LaunchOptions sync must not write then).
         if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_STEAM_RUNNING"] == "1" { return !bottle.isEmpty }
-        return !bottle.isEmpty && !procFind("Steam\\steam.exe", under: realPath("\(bottlesDir)/\(bottle)")).isEmpty
+        guard !bottle.isEmpty else { return false }
+        let dir = realPath("\(bottlesDir)/\(bottle)")
+        // Normal case: steam.exe (or helper) still has cwd inside the bottle.
+        if !procFind("Steam\\steam.exe", under: dir).isEmpty { return true }
+        // After cosmo_wineloader Dock naming, steam.exe often relocates cwd to $HOME, so cwd-under-bottle misses it.
+        // Require this bottle's wineserver plus any process whose argv still shows Steam\steam.exe.
+        return prefixServer(dir) != nil && !procFind("Steam\\steam.exe").isEmpty
     }
     // Stop this bottle's Steam: ask politely; if it is still up after 20 s (it sometimes ignores -shutdown), stop this bottle's Wine programs
     // (its own wineserver). Never another bottle's Steam: this used to pkill every steam.exe on the Mac.

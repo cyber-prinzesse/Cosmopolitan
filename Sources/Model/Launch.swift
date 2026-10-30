@@ -258,6 +258,7 @@ extension Model {
     func prepare(_ exe: String) -> Needs {
         var need = launchNeeds(exe)
         need.restartSteam = ensureControllerMode(for: exe)   // DualSense native ⇄ XInput: bus-wide, so Steam must restart when it changes
+        if !need.restartSteam, winebusNeedsSteamReload() { need.restartSteam = true }   // reg already flipped under a live wineserver
         log += need.note
         if let red = Model.redGame((exe as NSString).deletingLastPathComponent) { linkWitcherRewrite(red.exe, appName(exe)) }
         // Steam on a Wine 11 engine (measured 24 Oct, tests/oracle/launcher.sh): with its web views off the GPU its window stays black or never
