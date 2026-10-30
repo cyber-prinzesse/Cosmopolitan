@@ -25,6 +25,7 @@ PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https:/
 cp AppIcon.icns build.noindex/Cosmopolitan.app/Contents/Resources/  # built once from icon.png: sips -z … + iconutil -c icns
 cp TERMS.txt THIRD_PARTY_NOTICES.md README.md build.noindex/Cosmopolitan.app/Contents/Resources/   # shown on first run / referenced from the UI
 cp -R Resources/fonts build.noindex/Cosmopolitan.app/Contents/Resources/   # Instrument Sans (OFL), registered via ATSApplicationFontsPath below
+cp Resources/cosmos-glass-1024.png build.noindex/Cosmopolitan.app/Contents/Resources/   # preparing-bottle window (outline drawn in SwiftUI)
 # Engine add-on (x86_64, loaded by Wine's Mac driver, not by the app): steam.exe gets no Dock icon of its own (NoDockAddon.swift).
 clang -arch x86_64 -mmacosx-version-min=10.15 -dynamiclib -fobjc-arc -O2 -Wall -Werror -framework AppKit -install_name @loader_path/cosmo_nodock.dylib -o build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_nodock.dylib EngineAddon/cosmo_nodock.m
 codesign --force --sign - build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_nodock.dylib

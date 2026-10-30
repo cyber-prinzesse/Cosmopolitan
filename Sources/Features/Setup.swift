@@ -71,7 +71,9 @@ extension Model {
             step("Creating the first bottle \"Games\"…", 0.92)
             let pfx = "\(bottlesDir)/Games"
             let env = "WINEPREFIX='\(pfx)' WINEDEBUG=-all WINEMSYNC=1 WINEDLLOVERRIDES='mscoree,mshtml='"
+            PreparingWindow.begin(bottle: "Games")
             _ = shell("mkdir -p '\(pfx)'; \(env) '\(wine)' wineboot -u >/dev/null 2>&1; \(env) '\(wine)' reg add 'HKLM\\System\\CurrentControlSet\\Services\\winebus' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; \(env) '\(wine)' winecfg -v win10 >/dev/null 2>&1; '\(engRoot)/wswine.bundle/bin/wineserver' -w; rm -f '\(pfx)/dosdevices/z:'")
+            PreparingWindow.end()
             guard fm.fileExists(atPath: "\(pfx)/drive_c/windows/system32/kernel32.dll") else { step("✗ The first bottle could not be created.", 0); return false }
             step("Installing .NET support (Wine Mono from WineHQ)…", 0.95)
             if !installWineMono(pfx, log: { step($0.trimmingCharacters(in: .whitespacesAndNewlines), 0.97) }) { step("⚠ .NET support could not be installed now; it is retried before the first .NET program starts.", 0.97) }

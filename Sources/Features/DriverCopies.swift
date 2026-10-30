@@ -29,6 +29,9 @@ func updatePrefixIfStale(_ prefix: String) {
     // Mono and Gecko stay out of the update, as in createBottle: Cosmopolitan installs and checks Wine Mono itself, and a newer engine's
     // wineboot otherwise wants its own newer Wine Mono and waits on that download (Wine 11 with Mono 9.4.0 in the bottle: for good).
     let limit = (isTestBuild ? Int(ProcessInfo.processInfo.environment["COSMO_TEST_UPDATE_TIMEOUT"] ?? "") : nil) ?? 300
+    let name = (prefix as NSString).lastPathComponent
+    PreparingWindow.begin(bottle: name)   // GUI: Cosmos preparing window while wineboot -u runs (Wine 10 still shows its own underneath)
+    defer { PreparingWindow.end() }
     let wb = Process(); wb.executableURL = URL(fileURLWithPath: "/bin/sh")
     wb.arguments = ["-c", "exec env WINEDLLOVERRIDES='mscoree,mshtml=' \(plainWine(prefix)) wineboot -u >/dev/null 2>&1"]
     guard (try? wb.run()) != nil else { return }
@@ -47,7 +50,6 @@ func updatePrefixIfStale(_ prefix: String) {
     let dir = realPath(prefix), own = ["services.exe", "winedevice.exe", "plugplay.exe", "svchost.exe", "rpcss.exe", "explorer.exe",
                                        "conhost.exe", "start.exe", "rundll32.exe", "wineboot.exe", "winemenubuilder.exe", "iexplore.exe"]
     let ownPids = Set(own.flatMap { procFind($0, under: dir) }), others = procFind(".exe", under: dir).filter { !ownPids.contains($0) }
-    let name = (prefix as NSString).lastPathComponent
     if others.isEmpty {
         kill(wb.processIdentifier, SIGKILL)
         for n in ["rundll32.exe", "wineboot.exe"] { for p in procFind(n, under: dir) { kill(p, SIGKILL) } }
