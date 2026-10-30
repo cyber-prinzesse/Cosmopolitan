@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Steam's own window draws on the engine under test (Wine 11 engines: black or missing unless the launch code puts Steam's web views on
-# the GPU and lets DXMT draw across processes; measured 24 Oct with tests/oracle/launcher.sh, CrossOver 26.3 as the reference).
+# the GPU and lets DXMT draw across processes; measured 24 Oct with tests/oracle/launcher.sh, another Mac Wine 11 launcher as the reference).
 # A throwaway bottle, Valve's SteamSetup.exe installed silently, Steam started through Cosmopolitan (its flags, environment and the
 # GPUAccelWebViewsV3 value on Wine 11), then screenshots of Steam's largest window while it runs: PASS when it isn't uniformly dark.
 # Not logged in, no account; your Steam is never touched. Usage: COSMO_ENGINE=… COSMO_ENGINE_DIR=… tests/ui/steam_window.sh [seconds]

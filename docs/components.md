@@ -32,7 +32,7 @@ Every installed driver folder and GStreamer is byte-identical to Template-1.0.24
 
 | Component | Version | Source | Pin | Licence | Status |
 |---|---|---|---|---|---|
-| Cosmos (Wine 11) | `cosmos-11.0-r<N>` | github.com/cyber-prinzesse/cosmos-engine (`build.yml`, `cosmos_revision`) | tarball SHA-256 in each build's `.sha256`; `COSMOS-BUILD.txt` lists source pin, patches, commit | LGPL-2.1-or-later (Wine) | CrossOver 26.3 source + Highball's series + Cosmopolitan's 0028–0031 and theme; bundles its own host libraries. Test builds only; see `docs/adr/0001-cosmos-engine.md` |
+| Cosmos (Wine 11) | `cosmos-11.0-r<N>` | github.com/cyber-prinzesse/cosmos-engine (`build.yml`, `cosmos_revision`) | tarball SHA-256 in each build's `.sha256`; `COSMOS-BUILD.txt` lists source pin, patches, commit | LGPL-2.1-or-later (Wine) | Wine 11 for macOS + Highball's series + Cosmopolitan's 0028–0031 and theme; bundles its own host libraries. Test builds only; see `docs/adr/0001-cosmos-engine.md` |
 
 ## Upstream replacements (not installed; each needs to pass the suite first)
 

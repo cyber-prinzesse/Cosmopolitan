@@ -3,7 +3,7 @@ import Foundation
 // One Dock icon for Steam: steam.exe has no window of its own, but Wine makes every program that ever shows a window a regular
 // Dock app, so Steam sat in the Dock twice. Bottles mark such programs with Mac Driver › NoDockIcon (see healSteamDockIcon); the
 // engine's Mac driver honours it through cosmo_nodock.dylib (EngineAddon/), loaded by one extra LC_LOAD_DYLIB in winemac.so.
-// The driver itself can't be rebuilt: Sikarugir's is CrossOver-based and D3DMetal/DXMT use its macdrv_functions. Done once per
+// The driver itself can't be rebuilt: Sikarugir's has a macdrv_functions table that D3DMetal/DXMT call and no public source. Done once per
 // engine; files are swapped in by rename, so running programs keep what they mapped. The original stays as winemac.so.orig-before-nodock.
 extension Model {
     nonisolated static let noDockAddon = "cosmo_nodock.dylib"

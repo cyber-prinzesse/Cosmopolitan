@@ -18,7 +18,7 @@ extension Model {
         return (winPath(exe), extraArgs(exe))
     }
 
-    // Item 3: measured on r29 — default start: blank window; with these: the login page (as on CrossOver). Wine 10 stays blank either way.
+    // Item 3: measured on r29 — default start: blank window; with these: the login page (as on other Mac Wine launchers). Wine 10 stays blank either way.
     static let ubisoftCEFSwitches = ["--no-sandbox", "--in-process-gpu", "--disable-gpu"]
     func ubisoftClient(_ exe: String) -> String? {
         guard ["ubisoftconnect.exe", "upc.exe"].contains((exe as NSString).lastPathComponent.lowercased()) else { return nil }

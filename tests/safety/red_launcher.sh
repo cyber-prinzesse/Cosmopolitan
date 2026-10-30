@@ -1,6 +1,6 @@
 #!/bin/zsh
 # A game whose tile is a launcher (The Witcher 3, 2026-10-23): the Library said "Ready", but CD Projekt's REDprelauncher starts
-# REDlauncher, whose Qt window can't get an OpenGL context here; skipping it, the engine's CrossOver rewrite turns
+# REDlauncher, whose Qt window can't get an OpenGL context here; skipping it, the engine's built-in rewrite turns
 # bin\x64_dx12\witcher3.exe into bin\x64\witcher3.exe, a DirectX 11 build the DirectX 12-only game no longer has.
 # Stand-ins, same layout: launcher-configuration.json (DirectX 12 only); REDprelauncher.exe starts the configured game only with
 # --launcher-skip (exit 4 if that start fails, like the real "Failed to launch game!"), else fails like REDlauncher (exit 3);

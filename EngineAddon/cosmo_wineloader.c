@@ -5,7 +5,7 @@
  *
  * Cosmopolitan starts Wine through this program and keeps WINELOADER pointing here so every child
  * CreateProcess comes back through it. Wine 10 exec's WINELOADER with argv[1] = the Windows exe
- * path (CrossOver loader/main.c apple_override_bundle_name). We look that basename up in
+ * path (the loader's apple_override_bundle_name in loader/main.c). We look that basename up in
  * $WINEPREFIX/options/dock-names.txt (or Mac Driver AppName in user.reg), then execv a real wine
  * copy named <dir>/<Name>. No entry → $COSMO_LOADER_NAME, else "wine".
  *

@@ -29,8 +29,8 @@ is what the updater downloads, the `.dSYM.zip` holds the debug symbols for crash
 <img src="docs/design/cosmos-icon-128.png" width="64" align="right" alt="The Cosmos icon: a martini glass holding a galaxy">
 
 Cosmopolitan is moving to its own Wine engine, **Cosmos**, built in the open at
-[cyber-prinzesse/cosmos-engine](https://github.com/cyber-prinzesse/cosmos-engine). Cosmos is based on Wine: CodeWeavers'
-CrossOver 26.3 source with Highball's patch series and Cosmopolitan's own patches (each program's own Dock name, one
+[cyber-prinzesse/cosmos-engine](https://github.com/cyber-prinzesse/cosmos-engine). Cosmos is based on Wine (Wine 11 for macOS,
+LGPL), with Highball's patch series and Cosmopolitan's own patches (each program's own Dock name, one
 Dock icon for Steam, dark title bars, the Cosmos icon, a black theme for the windows Wine draws itself, D3D12 games no
 longer freezing on a fault in Apple's Metal threads). Every build names its exact source and patches, and carries the
 libraries it needs. Today the app still runs on Sikarugir's Wine 10 build; Cosmos becomes the default once it passes the
@@ -86,7 +86,7 @@ Built on the Mac side instead of inside Wine: game keyboard layout (switches to 
 
 ## Credits
 
-Wine, CodeWeavers' CrossOver sources, Highball's engine recipe and patches (gauthierpiarrette), the Sikarugir Wine
+Wine and its contributors, Highball's engine recipe and patches (gauthierpiarrette), the Sikarugir Wine
 builds, DXMT (3Shain), DXVK/D9VK (doitsujin, Gcenx),
 MoltenVK (Khronos), GStreamer, cnc-ddraw, SDL, winetricks, DOSBox Staging, the Highball
 database (CC0), ProtonDB and umu-protonfixes. Full list with licenses in
