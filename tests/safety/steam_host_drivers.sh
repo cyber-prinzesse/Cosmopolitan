@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Steam hosts every game's CreateProcess: a driver-fallback DRIVERS= pin on steam.exe must be cleared so DX12 games keep D3DMetal.
 # Also: driverFallback must not rewrite steam.exe Options (exit 42 already skips; other early Steam exits must too).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 

@@ -3,7 +3,7 @@
 # stand-in Steam game "Test Quest" (app 555): saves in AppData/Roaming/TestQuest/save*.dat and in <base>/Saves, plus a Linux-only path
 # that must be ignored. Its saves are backed up on request, before Repair, before a driver switch and before a game update; the newest 5
 # are kept; files the manifest doesn't name are not copied.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 cat > "$T/manifest.yaml" <<'Y'

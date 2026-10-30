@@ -3,7 +3,7 @@
 # taken before Repair, a driver switch, a registry sweep and a Windows-version change. The newest 3 are kept, for 3 days, and another bottle's are
 # never touched (not even "S-2" next to "S"). Disk use counts what only the snapshots hold. Rollback restores the bottle, keeps the state
 # before it as a snapshot, and stops only that bottle's programs (another bottle's Wine and a Mac process named *.exe keep running).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 clang -O2 -x c -o "$T/privsize" - <<'C' || fail "could not build the private-size probe"

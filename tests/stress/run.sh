@@ -2,7 +2,7 @@
 # Driver stress suite, isolated: the test build with a throwaway home; one golden throwaway bottle gets the test programs, and every test
 # runs in its own fresh APFS clone of it (clean prefix, registry and display state per test). Prints each launch-check plan and result.
 # Exit 1 unless every test wrote an OK line. Order: default, or ORDER=reverse / ORDER=random (seed printed) to prove order independence.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 tw_snapshot
 ct --newbottle G >/dev/null 2>&1 && stress_build G || { print "could not create the golden bottle"; exit 1; }
 exes=("$(tprefix G)"/drive_c/StressTest/stress-*.exe(N:t))

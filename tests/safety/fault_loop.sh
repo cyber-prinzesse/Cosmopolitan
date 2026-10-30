@@ -3,7 +3,7 @@
 # Detector uses PROC_PIDTASKINFO faults/s and messages_sent/s (real hang: ~58k faults/s, ~582k msgs/s; healthy DX12: ~0 / ~3k).
 # Controls: busy multi-thread x86 loop; write-watch handler that faults in short bursts with pauses (GC-style) plus busy threads.
 # Launcher-exits-first: parent starts the faulting child and exits; child still detected.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle F >/dev/null 2>&1; [[ -d "$(tprefix F)/drive_c" ]] || fail "throwaway bottle not created"

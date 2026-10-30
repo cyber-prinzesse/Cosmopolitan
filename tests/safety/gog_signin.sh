@@ -5,7 +5,7 @@
 # throwaway home; your own ~/.config/lgogdownloader is only hashed, before and after. With SHOTS=dir, the sheet itself is captured:
 # GOG's real login page (loaded, nothing typed), then signed in and failed (a local page redirects to the success address, which the
 # sheet catches before anything is sent).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 REAL_GOG="$REAL_HOME/.config/lgogdownloader"; gog_hash() { cat "$REAL_GOG"/*(N.) 2>/dev/null | shasum -a 256 | cut -c1-16; }; gog0=$(gog_hash)

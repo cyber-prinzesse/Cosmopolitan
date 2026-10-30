@@ -4,7 +4,7 @@
 # A throwaway bottle, Valve's SteamSetup.exe installed silently, Steam started through Cosmopolitan (its flags, environment and the
 # GPUAccelWebViewsV3 value on Wine 11), then screenshots of Steam's largest window while it runs: PASS when it isn't uniformly dark.
 # Not logged in, no account; your Steam is never touched. Usage: COSMO_ENGINE=… COSMO_ENGINE_DIR=… tests/ui/steam_window.sh [seconds]
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 swiftc -O "$TESTENV_REPO/tests/lib/winshot.swift" -o "$T/winshot" 2>/dev/null || fail "could not build winshot"

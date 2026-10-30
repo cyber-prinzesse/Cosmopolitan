@@ -2,7 +2,7 @@
 # Phase 0 N1: driver DLLs never land in system32/syswow64. New bottles get none; Wine's automatic prefix update can't add any; the
 # cleanup moves out only exact-hash copies of our backend files, restores Wine's own, and lists what it moved. Drivers still load per
 # launch from the bottle's drivers/ links.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 R="$TS/engines/renderer"; L="$TS/engines/$ENGINE/wswine.bundle/lib/wine"
 ours() { for f in "$R"/*/wine/*/*.dll(N); do shasum -a 256 "$f" | cut -d' ' -f1; done | sort -u; }

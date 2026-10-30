@@ -10,7 +10,7 @@
 [[ -f "$COSMO_ENGINE_DIR/engine/lib/wine/x86_64-unix/libvulkan_kosmickrisp.dylib" ]] || { print "SKIP vkd3d_fallback: no KosmicKrisp engine at $COSMO_ENGINE_DIR"; exit 0; }
 [[ -d $VKD3D_BUILD ]] || { print "SKIP vkd3d_fallback: no vkd3d-proton build at $VKD3D_BUILD"; exit 0; }
 export COSMO_ENGINE=highball-11.0-r29 COSMO_ENGINE_DIR
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 [[ -d "$TS/engines/renderer/d3dmetal/wine" ]] || { print "SKIP vkd3d_fallback: D3DMetal isn't installed, so there is no D3DMetal crash to fall back from"; exit 0; }

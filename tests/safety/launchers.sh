@@ -2,7 +2,7 @@
 # Item 37: a Dock/Launchpad entry per game. Two stand-in games; --sync-launchers writes one launcher app each into the throwaway home's
 # ~/Applications/Cosmopolitan Apps: signed, marked as Cosmopolitan's, opening cosmopolitan://launch?name=… with this app. A removed game's
 # launcher goes; an app there that isn't ours stays. Launchers are never run here (they would reach the Cosmopolitan registered for the link).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle L >/dev/null 2>&1; [[ -d "$(tprefix L)/drive_c" ]] || fail "throwaway bottle not created"

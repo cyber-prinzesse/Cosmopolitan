@@ -5,7 +5,7 @@
 # (Store.battlenet.args, measured: login page on r29), and leaves its HardwareAcceleration setting alone there. This proves the launch
 # check says so on Wine 11 and stays green (no more "doesn't start" red), and that Wine 10 is untouched. "fake11" is a stand-in engine
 # folder with Wine 11's layout; the launch check only reads the exe. (The real draw: evidence/scripts/t3-bn-switch2.zsh, MODES=ctl.)
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 mkdir -p "$TS/engines/fake11/wswine.bundle/lib/wine/x86_64-unix"; : > "$TS/engines/fake11/wswine.bundle/lib/wine/x86_64-unix/wine"

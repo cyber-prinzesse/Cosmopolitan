@@ -3,7 +3,7 @@
 # each start in logs/webhelper.txt; 3 within 2 minutes is a loop. A throwaway bottle gets a webhelper.txt written the way Steam writes it:
 # a normal session (a start 10 min ago plus 2 recent ones: start and sign-in) says nothing; 4 starts within a minute are reported once, with
 # the memory state, and leave a crash record carrying webhelper.txt's tail. Nothing runs in Wine: the check only reads the log.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 W="$(tprefix L)/drive_c/Program Files (x86)/Steam/logs/webhelper.txt"; mkdir -p "${W:h}"

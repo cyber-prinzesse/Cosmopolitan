@@ -3,7 +3,7 @@
 # (app 888), a leftover installer, and Windows and user temp files. The list shows them biggest first, without the installed game's cache;
 # nothing is deleted without confirmation (--apply alone deletes nothing); confirmed, exactly the listed items go,
 # except a bottle's temp files while a program runs in it.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle Z >/dev/null 2>&1; [[ -d "$(tprefix Z)/drive_c" ]] || fail "throwaway bottle not created"

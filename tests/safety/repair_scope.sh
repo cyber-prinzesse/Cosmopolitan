@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Regression for Phase 0 N5: Repair stops only the bottle it repairs. Another bottle's Wine programs, a Mac process with ".exe" in its
 # command line, your Steam and your app must survive. Troubleshoot must not ask for Repair just because two bottles are running.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle A >/dev/null 2>&1; ct --newbottle B >/dev/null 2>&1

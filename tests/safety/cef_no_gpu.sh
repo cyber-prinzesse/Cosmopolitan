@@ -2,7 +2,7 @@
 # CEF hosts under Wine: Chromium's window stays black unless --disable-gpu --disable-gpu-compositing are passed (verified 2026-10-29 with
 # 3DMark Demo). Detection is PE import of libcef.dll + that DLL beside the exe. Stand-ins: a stub libcef.dll, a host that imports it and
 # writes GetCommandLineW to a file, a control with no libcef import, and CEF_GPU=1 as opt-out.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle C >/dev/null 2>&1; [[ -d "$(tprefix C)/drive_c" ]] || fail "throwaway bottle not created"

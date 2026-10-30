@@ -3,7 +3,7 @@
 # working driver is remembered in its Options and named in the compat report; a game that crashes with that one too goes back to automatic;
 # a driver the user chose themselves is asked about, never switched silently. Stand-in Direct3D 11 programs: one exits with code 3 when
 # DXMT is its driver (the slot variables name the driver folder), one exits with code 3 whatever the driver.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 cat > "$T/game.c" <<'C'

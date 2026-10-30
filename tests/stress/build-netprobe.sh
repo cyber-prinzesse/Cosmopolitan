@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Rebuilds Resources/netprobe.exe from Resources/netprobe.cs with Wine Mono's own C# compiler, in a throwaway prefix that gets the
 # pinned WineHQ Wine Mono MSI (from the app's download cache, or WineHQ).
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 ct --newbottle M >/dev/null 2>&1; P="$(tprefix M)"
 [[ -d "$P/drive_c/windows/mono" ]] || { print "Wine Mono missing in the new bottle"; exit 1; }
 mcs=$(cd "$P/drive_c" && find windows/mono -iname mcs.exe | head -1)

@@ -2,7 +2,7 @@
 # Item 31: template bottles. The first bottle made with this engine becomes a clean template once it is complete (Wine Mono in); the next
 # bottle is one clonefile of it (APFS private size 0: every block shared), ready in seconds; a new engine version gets a fresh template and
 # the old one goes.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 clang -O2 -x c -o "$T/privsize" - <<'C' || fail "could not build the private-size probe"

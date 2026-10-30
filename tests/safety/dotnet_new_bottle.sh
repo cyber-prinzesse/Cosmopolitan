@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Phase 0 N2: a new bottle gets Wine Mono from WineHQ (pinned SHA-256), and a .NET program's light turns green only after the probe
 # program has really run in that bottle. A wrong download is rejected and nothing is installed.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 light() { ct --check "$1" "$2" 2>&1 | grep -o 'light: [a-z]*' | tail -1; }
 APP="drive_c/Apps/dotnetapp.exe"; place() { mkdir -p "$(tprefix $1)/drive_c/Apps"; cp "$T/CosmopolitanTest.app/Contents/Resources/netprobe.exe" "$(tprefix $1)/$APP"; }

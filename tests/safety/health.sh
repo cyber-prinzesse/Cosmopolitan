@@ -2,7 +2,7 @@
 # Item 35: the start-up health check. In a throwaway home: a graphics component file changed (one byte), a bottle without Wine Mono, a
 # stored setting of a game that is gone, and too little disk space (simulated). --health finds each; --health-fix puts the component back
 # (only after a yes; the changed copy kept as .old), removes the stale setting and reinstalls Wine Mono. Disk space has no automatic fix.
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 SK="$TH/Library/Application Support/Sikarugir/Template"; mkdir -p "$SK"   # the pinned template, to put a component back from

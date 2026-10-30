@@ -4,7 +4,7 @@
 # delay-load-only import as a hard "missing DLL" and light the tile red. The normal/delay split is parsed natively (pe_test.cpp); this
 # proves the launch check (--check) acts on it, on the shipping engine. Stand-ins in a throwaway bottle: one exe that DELAY-loads a DLL
 # that is nowhere in the bottle (must not be red), and a control that imports the SAME DLL normally (must stay red "missing DLLs").
-source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle E >/dev/null 2>&1; [[ -d "$(tprefix E)/drive_c" ]] || fail "throwaway bottle not created"
