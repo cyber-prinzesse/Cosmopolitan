@@ -100,7 +100,7 @@ struct ContentView: View {
                         Button("Back up") { m.backupBottle() }.disabled(m.selected.isEmpty || m.busy)
                         Button("Archive to a file") { m.archiveBottle() }.disabled(m.selected.isEmpty || m.busy)
                         Button("Restore from a file…") { m.restoreBottle() }.disabled(m.busy)
-                        Button("Import from Whisky / CrossOver / Sikarugir…") { showImport = true }
+                        Button("Import bottles from other apps…") { showImport = true }
                         Divider()
                         Button("Share with other Mac users") { m.shareBottle() }.disabled(m.selected.isEmpty || m.busy)
                         Menu("Move to external drive") {   // §8.4 copies the bottle, leaves a link; hides while unplugged
