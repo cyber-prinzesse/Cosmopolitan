@@ -51,10 +51,11 @@ testenv_init() {
 }
 # Arm cleanup in the calling shell: eval "$(testenv_trap_cleanup)" after testenv_init.
 # Must not run `trap … EXIT` (or define TRAPEXIT) inside this function — zsh would fire it when the
-# function returns and delete $T before the test starts. INT/TERM: cleanup then SIGKILL this shell —
-# zsh often ignores `exit` inside a signal trap while blocked in sleep (parent stayed alive after TERM).
+# function returns and delete $T before the test starts. INT/TERM: cleanup then exit (never kill -KILL $$ —
+# in a ( … ) subshell $$ is the outer script). zsh defers traps until a foreground child exits, so
+# long waits should be `sleep N & wait $!` so TERM runs the trap immediately.
 testenv_trap_cleanup() {
-  print -r -- "trap 'testenv_cleanup' EXIT; trap 'testenv_cleanup; trap - INT TERM; kill -KILL \$\$' INT; trap 'testenv_cleanup; trap - INT TERM; kill -KILL \$\$' TERM"
+  print -r -- "trap 'testenv_cleanup' EXIT; trap 'testenv_cleanup; exit 130' INT; trap 'testenv_cleanup; exit 143' TERM"
 }
 
 # Every test-build run is sandboxed: writes to your real Cosmopolitan folders, log and Sikarugir folder are impossible for it and for every
