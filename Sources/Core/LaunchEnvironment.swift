@@ -87,3 +87,10 @@ func engineUsesPrepend() -> Bool {
 func engineIsWine11() -> Bool { engineIsWine11(engineName) }
 // For a named engine folder under support/engines (the Settings picker labels and the switch warning), not only the active one.
 func engineIsWine11(_ name: String) -> Bool { FileManager.default.fileExists(atPath: support + "/engines/\(name)/wswine.bundle/lib/wine/x86_64-unix/wine") }
+// Cosmos engines name each program in the Dock themselves (patch 0029: Mac Driver AppName or WINEMACAPPNAME, else the exe name) and
+// honour NoDockIcon (0030), so neither cosmo_wineloader nor cosmo_nodock goes into them. Read from the build's own patch list
+// (COSMOS-BUILD.txt beside wswine.bundle), not the engine's name: Cosmos r1 was built without these patches.
+func engineHasDockPatches(_ name: String = engineName) -> Bool {
+    let list = (try? String(contentsOfFile: support + "/engines/\(name)/COSMOS-BUILD.txt", encoding: .utf8)) ?? ""
+    return list.contains("0029-ntdll-dock-name-from-appname") && list.contains("0030-winemac-no-dock-icon-option")
+}

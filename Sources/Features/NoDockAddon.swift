@@ -95,12 +95,50 @@ extension Model {
             }
         }
         for b in bottles {
-            let lines = (byBottle[b] ?? [:]).compactMap { $0.value.count == 1 ? "\($0.key)\t\($0.value.first!)" : nil }.sorted()
+            let names = (byBottle[b] ?? [:]).compactMapValues { $0.count == 1 ? $0.first : nil }
+            if engineHasDockPatches() {
+                let helpers = Model.storeHelperDockNames(b), want = names.merging(helpers) { a, _ in a }
+                Task.detached { Model.syncDockAppNames(b, want) }
+            }
+            let lines = names.map { "\($0.key)\t\($0.value)" }.sorted()
             let path = "\(bottlesDir)/\(b)/options/dock-names.txt", text = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
             if ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "") == text { continue }
             if text.isEmpty { try? FileManager.default.removeItem(atPath: path); continue }
             try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             try? text.write(toFile: path, atomically: true, encoding: .utf8)
         }
+    }
+    // Store helpers that draw the store's own window: on Cosmos a child gets its exe name unless the registry names it, so these keep
+    // the store's name (the dispatcher gave them their parent's). Only stores installed in the bottle.
+    nonisolated static func storeHelperDockNames(_ bottle: String) -> [String: String] {
+        let c = "\(bottlesDir)/\(bottle)/drive_c/Program Files (x86)", fm = FileManager.default
+        var out: [String: String] = [:]
+        if fm.fileExists(atPath: c + "/Steam/steam.exe") { out["steamwebhelper.exe"] = "Steam" }
+        if fm.fileExists(atPath: c + "/Epic Games") { out["epicwebhelper.exe"] = "Epic Games" }
+        if fm.fileExists(atPath: c + "/Battle.net") { out["battle.net.exe"] = "Battle.net" }
+        if fm.fileExists(atPath: c + "/GOG Galaxy") { out["galaxyclient helper.exe"] = "GOG Galaxy" }
+        return out
+    }
+    // Cosmos reads Dock names from Mac Driver › AppName (patch 0029). Kept equal to `want` (exe → name) with one `wine reg import`, only
+    // when it differs from what the ledger says we wrote: a reg call costs 1.5–7 s. Values someone else set are never touched.
+    nonisolated static func syncDockAppNames(_ bottle: String, _ want: [String: String]) {
+        let owner = "dock-name", key = { (exe: String) in "HKCU\\Software\\Wine\\AppDefaults\\\(exe)\\Mac Driver" }
+        let l = ledger(bottle)
+        let have = Dictionary(l.filter { $0.owner == owner }.map { ($0.exe, $0.value) }) { a, _ in a }
+        guard have != want else { return }
+        func esc(_ s: String) -> String { s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") }
+        var reg = "Windows Registry Editor Version 5.00\r\n"
+        for (exe, name) in want.sorted(by: { $0.key < $1.key }) where have[exe] != name {
+            reg += "\r\n[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)\\Mac Driver]\r\n\"AppName\"=\"\(esc(name))\"\r\n"
+        }
+        for exe in have.keys.sorted() where want[exe] == nil {
+            reg += "\r\n[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)\\Mac Driver]\r\n\"AppName\"=-\r\n"
+        }
+        let file = "\(bottlesDir)/\(bottle)/options/.dock-names.reg"
+        try? FileManager.default.createDirectory(atPath: (file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        guard (try? (Data([0xFF, 0xFE]) + (reg.data(using: .utf16LittleEndian) ?? Data())).write(to: URL(fileURLWithPath: file))) != nil else { return }
+        _ = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg import \(shq(file)) >/dev/null 2>&1")
+        try? FileManager.default.removeItem(atPath: file)
+        saveLedger(bottle, l.filter { $0.owner != owner } + want.sorted { $0.key < $1.key }.map { RegEntry(key: key($0.key), name: "AppName", value: $0.value, exe: $0.key, owner: owner) })
     }
 }
