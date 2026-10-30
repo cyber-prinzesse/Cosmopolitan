@@ -24,6 +24,20 @@ extension Model {
         var l = ledger(bottle).filter { !($0.key == key && $0.name == name) }
         l.append(RegEntry(key: key, name: name, value: value, exe: exe, owner: owner)); saveLedger(bottle, l)
     }
+    // Removes a value (and drops it from the ledger). Used when a template left a bottle setting that breaks Steam (Systray Hidden).
+    nonisolated static func regDelete(_ bottle: String, _ key: String, _ name: String) {
+        _ = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg delete \(shq(key)) /v \(shq(name)) /f >/dev/null 2>&1")
+        saveLedger(bottle, ledger(bottle).filter { !($0.key == key && $0.name == name) })
+    }
+    // Every Steam start: one `wine reg` call costs ~1.5 s (6.7 s cold), and steamBottleTweaks makes 17, so only the tray value is
+    // healed here, in Steam's own bottle, and only when user.reg (read as text, no Wine) still has it. After that it's free.
+    nonisolated static func healSteamSystray(_ bottle: String) {
+        let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(bottle)/user.reg", encoding: .utf8)) ?? ""
+        guard let r = reg.range(of: "[Software\\\\Wine\\\\Systray]") else { return }
+        let section = reg[r.upperBound...].components(separatedBy: "\n\n").first ?? ""
+        guard section.contains("\"Hidden\"=dword:00000001") else { return }
+        regDelete(bottle, "HKCU\\Software\\Wine\\Systray", "Hidden")
+    }
     // Current value from the bottle's live registry (nil = not set).
     nonisolated static func regGet(_ bottle: String, _ key: String, _ name: String) -> String? {
         let out = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg query \(shq(key)) /v \(shq(name)) 2>/dev/null | tr -d '\\r'")

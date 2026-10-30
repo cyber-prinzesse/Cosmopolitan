@@ -24,5 +24,16 @@ R="$TS/crash-reports/$rec"
 grep -q "^Steam's window restarted 4 times in 2 min at " "$R" && grep -q "^Last lines of Steam's logs/webhelper.txt:" "$R" && grep -q 'pid: 636 ' "$R" && grep -q '^Drivers: ' "$R" \
   || fail "the record lacks a part: $(head -8 "$R")"
 print "ok: crash record '$rec' with webhelper.txt's tail, for the bug report"
+# Deliberate Exit: bootstrap_log shows Shutdown with no newer Startup — webhelper noise during quit must not count as a loop
+# (and must not offer "Restart Steam", which would bring Steam back after the user closed it).
+B="$(tprefix L)/drive_c/Program Files (x86)/Steam/logs/bootstrap_log.txt"
+print -r -- "[$(date -v-5S '+%Y-%m-%d %H:%M:%S')] Startup - Steam Client launched with: \"C:\\Program Files (x86)\\Steam\\steam.exe\"" > "$B"
+print -r -- "[$(date -v-2S '+%Y-%m-%d %H:%M:%S')] Shutdown" >> "$B"
+{ start 55 1532 1; start 35 2092 2; start 14 2864 3; start 1 636 4; } > "$W"
+rm -rf "$TS/crash-reports"
+out=$(ct --steamloop L 2>&1)
+[[ "$out" != *"window restarted"* ]] || fail "a deliberate Shutdown was treated as a window loop: $(print -r -- "$out" | grep 'window restarted')"
+ls "$TS/crash-reports/" 2>/dev/null | grep -q '^Steam ' && fail "a deliberate quit left a crash record"
+print "ok: bootstrap Shutdown (no newer Startup) is not a window loop"
 tw_check || fail "your real data changed"
 print "PASS steam_loop"

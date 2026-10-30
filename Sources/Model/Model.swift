@@ -60,6 +60,8 @@ import Network
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
     var steamLoopWarned: [String: Date] = [:]          // Steam window-loop warning, per bottle (rate limit)
     var steamSeenRunning: [String: Bool] = [:]         // last known steam.exe up/down per bottle (LaunchOptions sync on exit)
+    var steamStopOwned: Set<String> = []               // bottles Cosmopolitan is stopping itself (restartSteam); user quit must not cancel those
+    var steamRestartEpoch: [String: Int] = [:]          // bumped on user quit so an in-flight restartSteam does not launch Steam again
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
     @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)
@@ -98,9 +100,11 @@ import Network
     }
     // Stop this bottle's Steam: ask politely; if it is still up after 20 s (it sometimes ignores -shutdown), stop this bottle's Wine programs
     // (its own wineserver). Never another bottle's Steam: this used to pkill every steam.exe on the Mac.
+    // steamStopOwned: noteSteamRunningState must not treat this stop as a user quit (that would cancel restartSteam's follow-up launch).
     func stopSteam(_ bottle: String? = nil) async {
         let b = bottle ?? selected, pfx = "\(bottlesDir)/\(b)", ws = "\((wineBin as NSString).deletingLastPathComponent)/wineserver"
         let wasUp = steamRunning(in: b)
+        steamStopOwned.insert(b); defer { steamStopOwned.remove(b) }
         wine(b, ["C:\\Program Files (x86)\\Steam\\steam.exe", "-shutdown"], block: false)
         for _ in 0..<20 { try? await Task.sleep(nanoseconds: 1_000_000_000); if !steamRunning(in: b) { break } }
         if steamRunning(in: b) { log += "Steam ignored the shutdown request; stopping \(b)'s programs.\n"; _ = sh("env WINEPREFIX='\(pfx)' '\(ws)' -k") }
@@ -145,7 +149,16 @@ import Network
             guard !steamWaitArmed else { return }
             steamWaitArmed = true
             Task { @MainActor in
-                while let p = pendingSteamRestart, let now = Model.steamBusy(p.bottle) { pendingSteamRestart?.busy = now; try? await Task.sleep(nanoseconds: UInt64(steamIdlePoll * 1e9)) }
+                while let p = pendingSteamRestart, let now = Model.steamBusy(p.bottle) {
+                    // User quit while we waited: leave Steam down (don't relaunch when the download flag clears).
+                    if !steamRunning(in: p.bottle) {
+                        pendingSteamRestart = nil
+                        steamRestartEpoch[p.bottle] = (steamRestartEpoch[p.bottle] ?? 0) + 1
+                        let msg = "Steam quit: cancelled a pending restart so it stays down.\n"; log += msg; logToFile(msg)
+                        break
+                    }
+                    pendingSteamRestart?.busy = now; try? await Task.sleep(nanoseconds: UInt64(steamIdlePoll * 1e9))
+                }
                 steamWaitArmed = false
                 if let p = pendingSteamRestart, p.bottle == selected { pendingSteamRestart = nil; requestSteamRestart(p.why) }
             }
@@ -156,7 +169,15 @@ import Network
     func restartSteam(_ b: String, because why: String) {
         guard let s = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) else { return }
         let m = "Restarting Steam so \(why)…\n"; log += m; logToFile(m)
-        Task { @MainActor in await stopSteam(b); launch(s) }
+        let epoch = steamRestartEpoch[b] ?? 0
+        Task { @MainActor in
+            await stopSteam(b)
+            // User closed Steam while we were stopping it for a restart: leave it down (bootstrap_log showed Shutdown then Cosmo relaunch).
+            guard (steamRestartEpoch[b] ?? 0) == epoch else {
+                let msg = "Steam stayed quit (you closed it); skipped relaunch after \(why).\n"; log += msg; logToFile(msg); return
+            }
+            launch(s)
+        }
     }
     var steamIdlePoll: Double { isTestBuild ? Double(ProcessInfo.processInfo.environment["COSMO_TEST_IDLE_POLL"] ?? "") ?? 20 : 20 }
     // Asks before something the user may not want right now. The CLI can't show a dialog: it logs the question and answers Cancel, unless
