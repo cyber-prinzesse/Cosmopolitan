@@ -133,7 +133,7 @@ extension Model {
         if engineIsWine11(), ["steam.exe", "steamsetup.exe"].contains(name.lowercased()) { n.env["DXMT_ALLOW_CROSS_PROCESS_SWAPCHAIN"] = "1" }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
-        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE", "CEF_GPU"].contains(k) { n.env[k] = v }
+        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE", "CEF_GPU", "STEAM_IDLE_DIET"].contains(k) { n.env[k] = v }
         // §7.10 Locale: LANG=ja_JP.UTF-8 (etc.) reaches Wine as-is; CJK locales also get the matching fonts so old games don't show boxes.
         if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
         if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
