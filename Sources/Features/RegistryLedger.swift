@@ -38,6 +38,14 @@ extension Model {
         guard section.contains("\"Hidden\"=dword:00000001") else { return }
         regDelete(bottle, "HKCU\\Software\\Wine\\Systray", "Hidden")
     }
+    // Bottles set up before NoDockIcon existed get it on their next Steam start, once (user.reg read as text, as above).
+    nonisolated static let steamNoDockKey = "HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\Mac Driver"
+    nonisolated static func healSteamDockIcon(_ bottle: String) {
+        let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(bottle)/user.reg", encoding: .utf8)) ?? ""
+        if let r = reg.range(of: "[Software\\\\Wine\\\\AppDefaults\\\\steam.exe\\\\Mac Driver]"),
+           (reg[r.upperBound...].components(separatedBy: "\n\n").first ?? "").contains("\"NoDockIcon\"=\"y\"") { return }
+        regSet(bottle, steamNoDockKey, "NoDockIcon", "y", type: "REG_SZ", exe: "steam.exe", owner: "bottle")
+    }
     // Current value from the bottle's live registry (nil = not set).
     nonisolated static func regGet(_ bottle: String, _ key: String, _ name: String) -> String? {
         let out = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg query \(shq(key)) /v \(shq(name)) 2>/dev/null | tr -d '\\r'")

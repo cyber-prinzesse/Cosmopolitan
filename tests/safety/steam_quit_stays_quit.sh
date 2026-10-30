@@ -36,6 +36,10 @@ ct --launch Q "$S/steam.exe" --wait 2 >/dev/null 2>&1
 gone() { ! twine Q reg query 'HKCU\Software\Wine\Systray' /v Hidden 2>/dev/null | grep -q Hidden; }
 poll 30 gone || fail "Systray Hidden still set after Steam launch: $(twine Q reg query 'HKCU\Software\Wine\Systray' /v Hidden 2>&1)"
 print "ok: Steam's start cleared Systray Hidden in its own bottle (one wine reg call, only because it was set)"
+# healSteamDockIcon: a bottle from before NoDockIcon gets it on Steam's start (steam.exe: no Dock icon of its own)
+nodock() { twine Q reg query 'HKCU\Software\Wine\AppDefaults\steam.exe\Mac Driver' /v NoDockIcon 2>/dev/null | tr -d '\r' | grep -q 'NoDockIcon.*REG_SZ.*y'; }
+poll 30 nodock || fail "NoDockIcon not set for steam.exe after Steam launch"
+print "ok: Steam's start set NoDockIcon for steam.exe (one Steam icon in the Dock)"
 
 steampid() { local d="${$(tprefix $1):A}" p; for p in $(pgrep -f 'Steam.steam\.exe'); do [[ "$(lsof -a -p $p -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "$d"/* ]] && print $p; done; }
 starts() { grep -c '^start' "$(tprefix $1)/drive_c/Program Files (x86)/Steam/starts.txt" 2>/dev/null || print 0; }
