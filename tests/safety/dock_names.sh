@@ -46,6 +46,12 @@ BAD="The Witcher 3- Wild Hunt — Remastered"
 cp "$BIN/wine" "$BIN/$BAD" || fail "seed bad loader"
 # A non-wine file must never be pruned
 print 'not wine' > "$BIN/keep-me-not-wine"
+# A copy a running game was started from must stay (Wine starts that game's child processes through the same file).
+BUSY="Busy Game"; cp "$BIN/wine" "$BIN/$BUSY" || fail "seed busy loader"
+sandbox-exec -p "$(tw_sandbox_profile)" env HOME="$TH" WINEPREFIX="$(tprefix D)" WINEDEBUG=-all "$BIN/$BUSY" cmd.exe /c "ping -n 90 127.0.0.1 >nul" >/dev/null 2>&1 &
+BUSYPID=$!
+busy_up() { local p; for p in $(pgrep -f 'ping -n 90'); do return 0; done; return 1; }
+poll 60 busy_up || fail "the busy stand-in did not start"
 
 out=$(ct --loader-name D "$GAME_DIR/bin/witcher3.exe" 2>&1)
 print -r -- "$out" | grep -q '^loader-name: Steam$' || fail "Steam game loader-name: $out"
@@ -53,7 +59,9 @@ print -r -- "$out" | grep -q '^loader-path: Steam$' || fail "Steam game loader-p
 # Prune ran via loaderNamed: bad leftover gone; non-wine kept
 [[ ! -e "$BIN/$BAD" ]] || fail "stale game-titled wine copy still in bin/: $BAD"
 [[ -f "$BIN/keep-me-not-wine" ]] || fail "pruned a non-wine file"
-print "ok: Steam game → loader-name Steam; pruned '$BAD'; left keep-me-not-wine"
+[[ -f "$BIN/$BUSY" ]] || fail "pruned the loader copy a running game was started from"
+kill $BUSYPID 2>/dev/null; twineserver D -k 2>/dev/null; wait $BUSYPID 2>/dev/null
+print "ok: Steam game → loader-name Steam; pruned '$BAD'; left keep-me-not-wine and the running game's '$BUSY'"
 
 out=$(ct --loader-name D "$ST/steam.exe" 2>&1)
 print -r -- "$out" | grep -q '^loader-name: Steam$' || fail "steam.exe itself: $out"

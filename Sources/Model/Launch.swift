@@ -68,18 +68,31 @@ extension Model {
         }
         return sanitizeLoaderFileName(appName(exe))
     }
-    // Remove leftover loader copies that are byte-identical to bin/wine (never other files). Keeps store host names + the one in use.
+    // Remove leftover loader copies that are byte-identical to bin/wine (never other files). Keeps store host names + the one in use,
+    // and every copy a running process was started from: Wine starts a program's child processes (REDprelauncher → witcher3.exe,
+    // crash handlers, launcher hand-offs) through the same file, so deleting it under a running game breaks its next child.
     static func pruneWineLoaderCopies(binDir: String, winePath: String, keeping: Set<String>) {
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(atPath: binDir) else { return }
+        let running = runningExecutables()
         for f in items where f != "wine" {
             let path = binDir + "/" + f
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue else { continue }
-            if keeping.contains(f) { continue }
+            if keeping.contains(f) || running.contains(path) || running.contains(realPath(path)) { continue }
             guard fm.contentsEqual(atPath: path, andPath: winePath) else { continue }   // only exact wine copies
             try? fm.removeItem(atPath: path)
         }
+    }
+    // Executable paths of every process (libproc: `ps` is setuid and can't run sandboxed).
+    static func runningExecutables() -> Set<String> {
+        let n = proc_listallpids(nil, 0)
+        guard n > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(n) + 64)
+        let got = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
+        var out = Set<String>(), buf = [CChar](repeating: 0, count: 4096)   // PROC_PIDPATHINFO_MAXSIZE
+        for p in pids.prefix(max(got, 0)) where p > 0 && proc_pidpath(p, &buf, UInt32(buf.count)) > 0 { out.insert(String(cString: buf)) }
+        return out
     }
     func loaderNamed(_ exe: String) -> String {
         // Spaces become no-break spaces: the Dock shows them as spaces, but a loader path with an ASCII space breaks programs that start
