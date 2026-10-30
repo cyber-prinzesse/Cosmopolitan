@@ -69,6 +69,8 @@ import Network
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
     @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)
+    /// Other bottle paths for the same library identity (tile shows one; menu can switch). Cleared/refreshed in scan().
+    var libraryAlts: [String: [String]] = [:]
     @Published var online = true                                  // the Library says per game whether it starts without internet
     @Published var problem: (game: String, text: String)? = nil  // a problem in plain words, shown with a Fix button
     @Published var settingUp: Set<String> = []                    // games whose first start is installing what they need
@@ -318,12 +320,17 @@ import Network
     func scan() {
         loadSettings()
         // Published only when they changed: the folder watcher rescans while Steam writes, and each publish redraws the whole grid.
-        guard !selected.isEmpty else { if !programs.isEmpty { programs = [] }; if !library.isEmpty { library = [] }; return }
+        guard !selected.isEmpty else { if !programs.isEmpty { programs = [] }; if !library.isEmpty { library = []; libraryAlts = [:] }; return }
         let p = programsIn(selected); if p != programs { programs = p }
-        // The Library shows every bottle's games in one grid (item 39); the launch check works per game, whatever bottle is selected.
-        let l = (bottles.filter { $0 != selected && FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }.flatMap { programsIn($0) } + programs)
+        // Every bottle's games, then one tile per identity (store appid / Unreal / CDPR / real path). Hidden ids stay out.
+        let raw = bottles.filter { FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }.flatMap { programsIn($0) }
+        var alts: [String: [String]] = [:]
+        let hidden = hiddenLibraryIds()
+        let deduped = dedupeLibrary(raw, preferBottle: selected, alts: &alts)
+            .filter { !hidden.contains(libraryIdentity($0)) }
             .sorted { appName($0).lowercased() < appName($1).lowercased() }
-        if l != library { library = l }
+        libraryAlts = alts
+        if deduped != library { library = deduped }
         verifyAll(); fetchArt(); if !cliMode { syncLaunchers() }   // item 37: a Dock/Launchpad entry per game
         if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
         for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }
@@ -345,6 +352,9 @@ import Network
                 }
             }
         }
+        // Drop Steam entries for this bottle before re-adding (scan walks every bottle; a global clear would wipe the others).
+        let steamPrefix = "\(c)/Program Files (x86)/Steam/steamapps/common/"
+        steamGames = steamGames.filter { !$0.key.hasPrefix(steamPrefix) }
         // Steam library: one entry per appmanifest, pointing at the biggest top-level exe in its install folder.
         let lib = "\(c)/Program Files (x86)/Steam/steamapps"
         for f in (try? FileManager.default.contentsOfDirectory(atPath: lib)) ?? [] where f.hasPrefix("appmanifest_") {
@@ -374,15 +384,18 @@ import Network
                 if ["map", "editor", "tool", "config", "settings", "benchmark", "server", "sdk", "manual", "soundtrack"].contains(where: { n.lowercased().contains($0) }) { s -= 80 }
                 return s
             }
+            // A Steam tile keeps the exe it always had: options, playtime and save-backup records are named after it (the user's
+            // Witcher settings live in REDprelauncher.exe.env), so picking another exe here would silently drop them.
             guard let exe = found1.max(by: { score($0) < score($1) }) else { continue }
             steamGames["\(dir)/\(exe)"] = (id, val("name"))
             found.append("\(dir)/\(exe)")
         }
-        for p in storeGames(bottle) where !found.contains(p) { found.append(p) }   // GOG game folders, Legendary-installed Epic games
-        // Extras from "Find apps" (dropped silently once uninstalled).
+        for p in storeGames(bottle) where !found.contains(where: { realPath($0).caseInsensitiveCompare(realPath(p)) == .orderedSame }) { found.append(p) }   // GOG / Legendary
+        // Extras from "Find apps" (dropped silently once uninstalled). Match by real path so /tmp vs /private/tmp is not a second tile.
+        let have = Set(found.map { realPath($0).lowercased() })
         for p in ((try? String(contentsOfFile: "\(bottlesDir)/\(bottle)/cosmopolitan.apps", encoding: .utf8)) ?? "").components(separatedBy: "\n")
-            where !p.isEmpty && !found.contains(p) && FileManager.default.fileExists(atPath: p) { found.append(p) }
-        found = dedupe(found)   // one tile per application folder
+            where !p.isEmpty && FileManager.default.fileExists(atPath: p) && !have.contains(realPath(p).lowercased()) { found.append(p) }
+        found = dedupe(found)   // one tile per application (store id / Unreal / CDPR / folder)
         for p in found where icons[p] == nil { icons[p] = exeIcon(p) }
         return found.sorted { ($0 as NSString).lastPathComponent.lowercased() < ($1 as NSString).lastPathComponent.lowercased() }
     }

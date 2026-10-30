@@ -145,7 +145,7 @@ extension Model {
     // Extra places the plain scan does not look: GOG game folders (one level deeper) and Legendary's installed Epic games.
     // Also refreshes the owned-library lists for the Install menus in the background (network calls, off the main thread).
     func storeGames(_ bottle: String? = nil) -> [String] {
-        let c = "\(bottlesDir)/\(bottle ?? selected)/drive_c", fm = FileManager.default
+        let b = bottle ?? selected, c = "\(bottlesDir)/\(b)/drive_c", fm = FileManager.default
         var out: [String] = []
         for root in ["GOG Games", "Program Files (x86)/GOG Galaxy/Games", "Program Files (x86)/GOG Games"] {
             for game in (try? fm.contentsOfDirectory(atPath: "\(c)/\(root)")) ?? [] where !game.hasPrefix(".") {
@@ -154,12 +154,14 @@ extension Model {
                 }
             }
         }
-        for s in Store.allCases { if let e = storeExe(s, in: bottle) { out.append(e) } }   // store clients that live deeper than the plain scan looks (Epic's Portal/Binaries/Win64)
-        epicGames = [:]
+        for s in Store.allCases { if let e = storeExe(s, in: b) { out.append(e) } }   // store clients that live deeper than the plain scan looks (Epic's Portal/Binaries/Win64)
+        // Drop Epic entries that lived in this bottle (rescan), keep other bottles' keys — scan() walks every bottle.
+        let bottlePrefix = "\(bottlesDir)/\(b)/"
+        epicGames = epicGames.filter { !$0.key.hasPrefix(bottlePrefix) }
         // Legendary is a Python program (~0.4 s per call): never run it inside a scan. Use the last answer and refresh it in the
         // background; when the installed list changed, scan once more.
         if let l = legendary {
-            let cacheFile = "\(bottlesDir)/\(selected)/options/.epic-installed.json"
+            let cacheFile = "\(bottlesDir)/\(b)/options/.epic-installed.json"
             Task { @MainActor in   // the slow part runs detached; the rescan happens back on the main actor
                 let changed = await Task.detached { () -> Bool in
                     let fresh = shell("'\(l)' list-installed --json 2>/dev/null")
@@ -170,7 +172,7 @@ extension Model {
                 if changed { self.scan() }
             }
         }
-        if legendary != nil, let data = try? Data(contentsOf: URL(fileURLWithPath: "\(bottlesDir)/\(selected)/options/.epic-installed.json")),
+        if legendary != nil, let data = try? Data(contentsOf: URL(fileURLWithPath: "\(bottlesDir)/\(b)/options/.epic-installed.json")),
            let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]], let l = legendary {
             for g in list {
                 guard let path = g["install_path"] as? String, path.hasPrefix(c), let exe = g["executable"] as? String, let id = g["app_name"] as? String else { continue }
