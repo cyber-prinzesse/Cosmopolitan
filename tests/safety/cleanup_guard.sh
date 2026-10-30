@@ -1,6 +1,7 @@
 #!/bin/zsh
-# Guard: _testenv_pids_under_T must select ZERO pids for every bad \$T / pattern, and only a dummy under a
-# valid throwaway for a good \$T. No real kills of system processes — run this BEFORE cleanup_orphans.
+# Guard: _testenv_pids_under_T must select ZERO pids for every bad \$T, and only a dummy under a valid
+# throwaway for a good \$T (matched by executable path / proc_pidpath). No real kills of system
+# processes — run this BEFORE cleanup_orphans.
 source "${0:A:h}/../lib/testenv.sh"
 fail() { print "FAIL: $*"; exit 1; }
 

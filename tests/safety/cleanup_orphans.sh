@@ -1,6 +1,7 @@
 #!/bin/zsh
-# testenv_cleanup must kill native stand-ins under this run's $T/ (not only wineservers), including on fail() and SIGTERM,
-# without touching a control process started from a different cosmotest.* folder.
+# testenv_cleanup must kill native stand-ins AND Wine programs under this run's $T/ (not only wineservers), including on
+# fail() and SIGTERM, without touching a control process started from a different cosmotest.* folder.
+# Wine rewrites argv to C:\… so cleanup must match by executable path (proc_pidpath), and must wineserver -k before kill.
 source "${0:A:h}/../lib/testenv.sh"
 fail() { print "FAIL: $*"; exit 1; }
 
@@ -109,6 +110,48 @@ left_b=$(orphans_under "$T_B")
 [[ -z "$left_b" ]] || fail "phase (b): orphans still under $T_B after SIGTERM: $left_b"
 still_alive $CTRLPID || fail "phase (b): control process in $CTRL was killed"
 print "ok: SIGTERM cleanup killed stand-ins under $T_B; control survived"
+
+# --- (d) Wine: notepad + CreateProcess child, fail() — must leave nothing with exe under $T/ ---
+# On the old argv-based cleanup this leaked: Windows argv never starts with $T/, and wineserver was killed first.
+T_D_FILE="$BUILD/td"
+(
+  unset TESTENV_CLEANED
+  testenv_init >/dev/null || exit 1
+  eval "$(testenv_trap_cleanup)"
+  ct --newbottle W >/dev/null 2>&1
+  [[ -d "$(tprefix W)/drive_c" ]] || { print -u2 "FAIL: bottle W missing"; exit 2; }
+  PF="$(tprefix W)/drive_c/Program Files/HostApp"; mkdir -p "$PF"
+  cat > "$T/host.c" <<'C'
+#include <windows.h>
+int main(void){ STARTUPINFOA si={sizeof si}; PROCESS_INFORMATION pi;
+  CreateProcessA(NULL,"C:\\windows\\system32\\notepad.exe",NULL,NULL,FALSE,0,NULL,NULL,&si,&pi);
+  Sleep(600000); return 0; }
+C
+  x86_64-w64-mingw32-gcc -O2 -s "$T/host.c" -o "$PF/HostApp.exe" || { print -u2 "FAIL: build HostApp"; exit 2; }
+  ct --launch W "$PF/HostApp.exe" --wait 2 >/dev/null 2>&1 &
+  # Wait until notepad exists with a Windows argv (the leak class the old argv matcher missed).
+  wine_child() { ps -axo pid=,command= | awk '$2 ~ /^C:.windows.system32.notepad.exe/{print $1; exit}'; }
+  for i in {1..40}; do sleep 0.5; [[ -n "$(wine_child)" ]] && break; done
+  [[ -n "$(wine_child)" ]] || { print -u2 "FAIL: HostApp did not start notepad before fail()"; exit 2; }
+  # Confirm exe-path match sees the Wine loaders under $T.
+  orphans_under "$T" | grep -q . || { print -u2 "FAIL: no processes under \$T before Wine fail()"; exit 2; }
+  print -r -- "$T" > "$T_D_FILE"
+  fail "forced fail for cleanup_orphans (d) Wine"
+)
+ec_d=$?
+[[ $ec_d -eq 1 ]] || fail "phase (d): expected exit 1 from fail(), got $ec_d"
+T_D=$(cat "$T_D_FILE")
+sleep 1
+left_d=$(orphans_under "$T_D")
+[[ -z "$left_d" ]] || fail "phase (d): Wine orphans still under $T_D: $left_d"
+# Also no stray notepad/HostApp whose exe path still points at the deleted tree (proc_pidpath).
+for p in $(ps -axo pid=); do
+  [[ "$p" == <-> ]] || continue
+  exe=$(_testenv_pid_exe "$p" 2>/dev/null) || continue
+  [[ "$exe" == "$T_D/"* ]] && fail "phase (d): pid $p still running from deleted tree: $exe"
+done
+still_alive $CTRLPID || fail "phase (d): control process in $CTRL was killed"
+print "ok: fail() cleanup stopped Wine HostApp+notepad under $T_D; control survived"
 
 # --- control still alive; tear it down ourselves (exact pid — never a broad pgrep) ---
 still_alive $CTRLPID || fail "control died unexpectedly"
