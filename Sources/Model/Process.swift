@@ -8,7 +8,11 @@ func restartExit(_ exe: String, _ code: Int32) -> Bool { code == 42 && exe.lower
 extension Model {
     func exec(_ path: String, _ args: [String], env: [String: String] = [:], block: Bool = true, exe: String? = nil, then: (@MainActor () -> Void)? = nil) {
         if block { busy = true }
-        log += "$ \((path as NSString).lastPathComponent) \(args.joined(separator: " "))\n"
+        // Log the Dock/host name (Steam, …), not cosmo_wineloader — that is the dispatcher file Cosmo exec's.
+        let shown = (path as NSString).lastPathComponent == Model.wineloaderName
+            ? (exe.map { Model.loaderProcessName(for: $0) } ?? "wine")
+            : (path as NSString).lastPathComponent
+        log += "$ \(shown) \(args.joined(separator: " "))\n"
         let started = Date()
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
@@ -52,6 +56,13 @@ extension Model {
 
     func wine(_ bottle: String, _ args: [String], block: Bool = true, env: [String: String] = [:], drivers: [String]? = nil, exe: String? = nil, then: (@MainActor () -> Void)? = nil) {
         guard engineOK else { log += "Wine engine missing.\n"; return }
-        exec(exe.map(loaderNamed) ?? wineBin, args, env: launchEnv(bottle, drivers: drivers, fullSpeed: env["FULL_SPEED"] == "1").merging(env) { $1 }, block: block, exe: exe, then: then)
+        let loader = exe.map(loaderNamed) ?? wineBin
+        var e = launchEnv(bottle, drivers: drivers, fullSpeed: env["FULL_SPEED"] == "1").merging(env) { $1 }
+        // Children CreateProcess through WINELOADER; keep it on the dispatcher so each exe can get its own Dock file name.
+        if (loader as NSString).lastPathComponent == Model.wineloaderName {
+            e["WINELOADER"] = loader
+            if let exe { e["COSMO_LOADER_NAME"] = Model.loaderProcessName(for: exe) }
+        }
+        exec(loader, args, env: e, block: block, exe: exe, then: then)
     }
 }

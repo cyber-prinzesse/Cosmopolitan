@@ -28,6 +28,9 @@ cp -R Resources/fonts build.noindex/Cosmopolitan.app/Contents/Resources/   # Ins
 # Engine add-on (x86_64, loaded by Wine's Mac driver, not by the app): steam.exe gets no Dock icon of its own (NoDockAddon.swift).
 clang -arch x86_64 -mmacosx-version-min=10.15 -dynamiclib -fobjc-arc -O2 -Wall -Werror -framework AppKit -install_name @loader_path/cosmo_nodock.dylib -o build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_nodock.dylib EngineAddon/cosmo_nodock.m
 codesign --force --sign - build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_nodock.dylib
+# Dock-label dispatcher (x86_64 like Wine): Cosmo starts Wine through it; children re-enter via WINELOADER and exec bin/<Name>.
+clang -arch x86_64 -mmacosx-version-min=10.15 -O2 -Wall -Werror -o build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_wineloader EngineAddon/cosmo_wineloader.c
+codesign --force --sign - build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_wineloader
 cp Resources/netprobe.exe build.noindex/Cosmopolitan.app/Contents/Resources/   # .NET probe run once per bottle (source: Resources/netprobe.cs)
 cat > build.noindex/Cosmopolitan.app/Contents/Info.plist <<P
 <?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>

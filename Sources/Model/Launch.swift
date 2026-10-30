@@ -37,13 +37,14 @@ extension Model {
     }
 
     // Dock shortcut: a tiny .app that runs the program in its bottle. Drag it to the Dock.
-    // Dock label: macOS names the process after its executable file. A symlink is forgotten (Wine re-execs through the real path) and a
-    // bundle path breaks Steam's first window, but a *copy* of the 27 KB loader named after the program, kept in the engine's bin folder so
-    // libraries resolve, survives the re-exec — the CrossOver trick. Children inherit it, so Steam's helpers are "Steam" too.
-    //
-    // Name the loader after the process Wine actually starts, not the Library tile: a Steam game is steam.exe -applaunch <id>, so the
-    // loader must be "Steam" or the Dock keeps the game's title for the whole Steam session (seen as "The Witcher 3- Wild Hunt — …").
+    // Dock label: macOS names the process after its *executable file name* (bin/Steam → "Steam"). LaunchServices display names
+    // (cosmo_nodock / CFBundleName) are ignored by the Dock. Cosmo starts Wine through cosmo_wineloader (EngineAddon/), which looks
+    // argv[1] up in options/dock-names.txt and execv's a real wine copy named <Name>; WINELOADER stays on the dispatcher so children
+    // (games Steam starts, helpers) get their own label too. Fallback host name is still "Steam" for -applaunch, never the game title.
     static let storeLoaderNames = ["Steam", "Battle.net", "Epic Games", "GOG Galaxy", "EA app", "Ubisoft Connect"]
+    nonisolated(unsafe) static let wineloaderName = "cosmo_wineloader"
+    nonisolated(unsafe) static let wineloaderMarker = "cosmo_dock_loader_v1"
+    nonisolated(unsafe) static let wineRealBackup = "wine.cosmo-real"
     // Display → loader file base: ":" / "/" become spaces (not "-"), so "Witcher 3: Wild" stays "Witcher 3 Wild", not "Witcher 3- Wild".
     static func sanitizeLoaderFileName(_ raw: String) -> String {
         var s = raw
@@ -53,7 +54,7 @@ extension Model {
         s = s.replacingOccurrences(of: "\0", with: "").replacingOccurrences(of: "/", with: "-")
         return s.isEmpty ? "wine" : s
     }
-    // Which Dock / process name this library exe should use when Cosmopolitan starts Wine for it.
+    // Which Dock / process name this library exe should use when Cosmopolitan starts Wine for it (fallback when dock-names has no row).
     static func loaderProcessName(for exe: String) -> String {
         let base = (exe as NSString).lastPathComponent.lowercased()
         // Steam games: Cosmo always starts steam.exe -applaunch (SteamLaunch.launchCmd); name after Steam, never the game title.
@@ -68,18 +69,65 @@ extension Model {
         }
         return sanitizeLoaderFileName(appName(exe))
     }
-    // Remove leftover loader copies that are byte-identical to bin/wine (never other files). Keeps store host names + the one in use,
-    // and every copy a running process was started from: Wine starts a program's child processes (REDprelauncher → witcher3.exe,
-    // crash handlers, launcher hand-offs) through the same file, so deleting it under a running game breaks its next child.
+    nonisolated static func isCosmoWineloader(_ path: String) -> Bool {
+        guard let d = FileManager.default.contents(atPath: path), d.count > 32 else { return false }
+        return d.range(of: Data(Model.wineloaderMarker.utf8)) != nil
+    }
+    // Bytes to copy when making a named Dock loader: Wine 11 keeps the real unix loader as wine.cosmo-real.
+    nonisolated static func realWineLoader(in dir: String, fallback: String) -> String {
+        let backup = dir + "/" + wineRealBackup
+        if FileManager.default.fileExists(atPath: backup), !isCosmoWineloader(backup) { return backup }
+        if FileManager.default.fileExists(atPath: fallback), !isCosmoWineloader(fallback) { return fallback }
+        return fallback
+    }
+    // Install cosmo_wineloader into bin/ (Wine 10) and, on Wine 11, as lib/wine/x86_64-unix/wine (real → wine.cosmo-real).
+    @discardableResult nonisolated static func installWineloaderDispatcher(_ engine: String, tool: String = (Bundle.main.resourcePath ?? "") + "/cosmo_wineloader") -> String {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: tool) else { return "" }
+        var note = ""
+        let bin = engine + "/bin", dest = bin + "/" + wineloaderName
+        if !fm.contentsEqual(atPath: tool, andPath: dest) {
+            let t = dest + ".new"; try? fm.removeItem(atPath: t)
+            guard (try? fm.copyItem(atPath: tool, toPath: t)) != nil else { return "✗ Dock labels: couldn't copy \(wineloaderName) into the engine\n" }
+            _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+            guard rename(t, dest) == 0 else { try? fm.removeItem(atPath: t); return "✗ Dock labels: couldn't install \(wineloaderName)\n" }
+            note += "Dock labels: installed \(wineloaderName) into the engine's bin.\n"
+        }
+        let unix = engine + "/lib/wine/x86_64-unix", unixWine = unix + "/wine"
+        if fm.fileExists(atPath: unixWine) || fm.fileExists(atPath: unix) {
+            let backup = unix + "/" + wineRealBackup
+            if fm.fileExists(atPath: unixWine), !isCosmoWineloader(unixWine) {
+                if !fm.fileExists(atPath: backup) {
+                    try? fm.copyItem(atPath: unixWine, toPath: backup)
+                }
+                let t = unixWine + ".cosmo-new"; try? fm.removeItem(atPath: t)
+                guard (try? fm.copyItem(atPath: tool, toPath: t)) != nil else { return note + "✗ Dock labels: couldn't stage Wine 11 unix dispatcher\n" }
+                _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+                guard rename(t, unixWine) == 0 else { try? fm.removeItem(atPath: t); return note + "✗ Dock labels: couldn't replace Wine 11 unix wine\n" }
+                note += "Dock labels: Wine 11 unix wine is now the dispatcher (real loader: \(wineRealBackup)).\n"
+            } else if fm.fileExists(atPath: unixWine), isCosmoWineloader(unixWine), !fm.contentsEqual(atPath: tool, andPath: unixWine) {
+                let t = unixWine + ".cosmo-new"; try? fm.removeItem(atPath: t)
+                try? fm.copyItem(atPath: tool, toPath: t)
+                _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+                _ = rename(t, unixWine)
+            }
+        }
+        return note
+    }
+    // Remove leftover loader copies that are byte-identical to the real wine loader (never other files). Keeps store host names + the
+    // one in use, and every copy a running process was started from: Wine starts a program's child processes (REDprelauncher →
+    // witcher3.exe, crash handlers, launcher hand-offs) through the same file, so deleting it under a running game breaks its next child.
     static func pruneWineLoaderCopies(binDir: String, winePath: String, keeping: Set<String>) {
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(atPath: binDir) else { return }
         let running = runningExecutables()
-        for f in items where f != "wine" {
+        let protected: Set<String> = [wineloaderName, wineRealBackup, "wine", "wineserver"]
+        for f in items where !protected.contains(f) {
             let path = binDir + "/" + f
             var isDir: ObjCBool = false
             guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue else { continue }
             if keeping.contains(f) || running.contains(path) || running.contains(realPath(path)) { continue }
+            if isCosmoWineloader(path) { continue }
             guard fm.contentsEqual(atPath: path, andPath: winePath) else { continue }   // only exact wine copies
             try? fm.removeItem(atPath: path)
         }
@@ -94,23 +142,42 @@ extension Model {
         for p in pids.prefix(max(got, 0)) where p > 0 && proc_pidpath(p, &buf, UInt32(buf.count)) > 0 { out.insert(String(cString: buf)) }
         return out
     }
+    // Path Cosmo exec's: the dispatcher. Also ensures a wine copy for the host fallback name exists (children / no dock-names row).
     func loaderNamed(_ exe: String) -> String {
-        // Spaces become no-break spaces: the Dock shows them as spaces, but a loader path with an ASCII space breaks programs that start
-        // Windows services (GOG Galaxy's client service page-faulted and the client never got its window).
+        _ = Model.installWineloaderDispatcher(engineDir)
         let ascii = Model.loaderProcessName(for: exe)
         let name = ascii.replacingOccurrences(of: " ", with: "\u{00A0}")
-        guard name != "wine", !name.isEmpty else { return wineBin }
-        let dir = (wineBin as NSString).deletingLastPathComponent, copy = dir + "/" + name, fm = FileManager.default
-        if ascii != name { try? fm.removeItem(atPath: dir + "/" + ascii) }   // older copy with real spaces
-        let fresh = (try? fm.attributesOfItem(atPath: copy))?[.modificationDate] as? Date ?? .distantPast
-        let src = (try? fm.attributesOfItem(atPath: wineBin))?[.modificationDate] as? Date ?? .distantPast
-        if fresh < src { try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: wineBin, toPath: copy) }   // refresh after an engine update
-        // Drop stale game-titled loaders (exact wine copies only), e.g. "The Witcher 3- Wild Hunt — Remastered" from the old ":"→"-" rule.
+        let bin = (wineBin as NSString).deletingLastPathComponent, fm = FileManager.default
+        let dispatch = bin + "/" + Model.wineloaderName
+        let real = Model.realWineLoader(in: bin, fallback: wineBin)
         var keep = Set(Model.storeLoaderNames.map { $0.replacingOccurrences(of: " ", with: "\u{00A0}") })
         keep.formUnion(Model.storeLoaderNames)
-        keep.insert(name); keep.insert(ascii)
-        Model.pruneWineLoaderCopies(binDir: dir, winePath: wineBin, keeping: keep)
-        return fm.fileExists(atPath: copy) ? copy : wineBin
+        keep.insert(name); keep.insert(ascii); keep.insert(Model.wineloaderName)
+        if name != "wine", !name.isEmpty {
+            if ascii != name { try? fm.removeItem(atPath: bin + "/" + ascii) }
+            let copy = bin + "/" + name
+            let fresh = (try? fm.attributesOfItem(atPath: copy))?[.modificationDate] as? Date ?? .distantPast
+            let src = (try? fm.attributesOfItem(atPath: real))?[.modificationDate] as? Date ?? .distantPast
+            if !fm.fileExists(atPath: copy) || Model.isCosmoWineloader(copy) || fresh < src {
+                try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: real, toPath: copy)
+            }
+        }
+        Model.pruneWineLoaderCopies(binDir: bin, winePath: real, keeping: keep)
+        // Wine 11: named copies + prune beside ntdll (unix wine is the dispatcher).
+        if engineIsWine11() {
+            let unix = engineDir + "/lib/wine/x86_64-unix"
+            let ureal = Model.realWineLoader(in: unix, fallback: unix + "/" + Model.wineRealBackup)
+            if name != "wine", !name.isEmpty, fm.fileExists(atPath: ureal) {
+                let copy = unix + "/" + name
+                let fresh = (try? fm.attributesOfItem(atPath: copy))?[.modificationDate] as? Date ?? .distantPast
+                let src = (try? fm.attributesOfItem(atPath: ureal))?[.modificationDate] as? Date ?? .distantPast
+                if !fm.fileExists(atPath: copy) || Model.isCosmoWineloader(copy) || fresh < src {
+                    try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: ureal, toPath: copy)
+                }
+            }
+            Model.pruneWineLoaderCopies(binDir: unix, winePath: ureal, keeping: keep)
+        }
+        return fm.fileExists(atPath: dispatch) ? dispatch : wineBin
     }
     // The Dock/Launchpad entry of one game (the same launcher the Library keeps for every game, item 37), shown in Finder.
     func makeShortcut(_ exe: String, reveal: Bool = true) {
@@ -162,7 +229,8 @@ extension Model {
         // Drop a leftover driver-fallback pin on steam.exe before prepare reads Options: games inherit Steam's env, so DXVK there breaks DX12.
         // Wine's tray hidden (templates set it): Steam's window close has nowhere to minimize to, so the window keeps coming back.
         if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe); Model.healSteamSystray(bottleOf(exe)); Model.healSteamDockIcon(bottleOf(exe)) }
-        log += Model.installNoDockAddon(engineDir)   // engine add-on current before any program starts (Dock icon and name)
+        log += Model.installNoDockAddon(engineDir)   // engine add-on current before any program starts (Dock icon)
+        log += Model.installWineloaderDispatcher(engineDir)   // Dock label = loader file name (cosmo_wineloader)
         var need = prepare(exe)
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
         launchedDrivers[exe] = need.drivers ?? driverList(launchEnvRaw(bottleOf(exe)), bottle: bottleOf(exe))

@@ -115,10 +115,12 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
         case "--prepare-engine": if i + 1 < a.count { m.log += Model.prepareEngine(a[i + 1]) }   // a freshly unpacked engine folder (bin/, lib/wine/)
         case "--nodock-engine": if i + 1 < a.count { m.log += Model.installNoDockAddon(a[i + 1]) }   // an engine folder (…/wswine.bundle)
         case "--sync-launchers": m.log += Model.writeLaunchers(m.library.map { (appName($0), nil) }, app: Bundle.main.bundlePath)   // what the app does after a scan
-        case "--loader-name": if i + 2 < a.count {   // --loader-name <bottle> <exe>: Dock/process name Cosmo would give Wine for this library path
+        case "--loader-name": if i + 2 < a.count {   // --loader-name <bottle> <exe>: host Dock name + dispatcher Cosmo exec's
             let exe = m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]
             m.log += "loader-name: \(Model.loaderProcessName(for: exe))\n"
-            m.log += "loader-path: \((m.loaderNamed(exe) as NSString).lastPathComponent)\n"
+            let path = m.loaderNamed(exe)
+            m.log += "loader-path: \((path as NSString).lastPathComponent)\n"   // cosmo_wineloader (dispatcher); host wine copy is still ensured
+            m.log += "loader-host: \(Model.loaderProcessName(for: exe).replacingOccurrences(of: " ", with: "\u{00A0}"))\n"
         }
         case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
         case "--bisect": if i + 2 < a.count { m.bisect(m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
