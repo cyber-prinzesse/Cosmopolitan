@@ -15,6 +15,9 @@ twine Q reg add 'HKCU\Software\Wine\Systray' /v Hidden /t REG_DWORD /d 1 /f >/de
 twine Q reg add 'HKCU\Software\Wine\X11 Driver' /v ShowSystray /t REG_SZ /d false /f >/dev/null 2>&1
 hid=$(twine Q reg query 'HKCU\Software\Wine\Systray' /v Hidden 2>/dev/null | tr -d '\r')
 [[ "$hid" == *"0x1"* || "$hid" == *"0x00000001"* ]] || fail "could not seed Systray Hidden: $hid"
+# On a real bottle the value has long been on disk; the app reads user.reg as text (no Wine call), so flush the registry now.
+twineserver Q -k; twineserver Q -w
+grep -A3 'Software\\\\Wine\\\\Systray' "$(tprefix Q)/user.reg" | grep -q '"Hidden"=dword:00000001' || fail "Systray Hidden not in user.reg after flush"
 cat > "$T/steam.c" <<'C'
 #include <windows.h>
 #include <stdio.h>
@@ -29,12 +32,10 @@ int main(int argc, char **argv) {
 C
 x86_64-w64-mingw32-gcc -O2 -s "$T/steam.c" -o "$S/steam.exe" || fail "could not build the stand-in"
 ct --launch Q "$S/steam.exe" --wait 2 >/dev/null 2>&1
-# steamBottleTweaks runs on steam.exe launch: Hidden must be gone, ShowSystray true
+# healSteamSystray runs on steam.exe launch: Hidden must be gone
 gone() { ! twine Q reg query 'HKCU\Software\Wine\Systray' /v Hidden 2>/dev/null | grep -q Hidden; }
 poll 30 gone || fail "Systray Hidden still set after Steam launch: $(twine Q reg query 'HKCU\Software\Wine\Systray' /v Hidden 2>&1)"
-show=$(twine Q reg query 'HKCU\Software\Wine\X11 Driver' /v ShowSystray 2>/dev/null | tr -d '\r')
-[[ "$show" == *"true"* ]] || fail "ShowSystray not true after tweaks: $show"
-print "ok: steamBottleTweaks cleared Systray Hidden and set ShowSystray=true"
+print "ok: Steam's start cleared Systray Hidden in its own bottle (one wine reg call, only because it was set)"
 
 steampid() { local d="${$(tprefix $1):A}" p; for p in $(pgrep -f 'Steam.steam\.exe'); do [[ "$(lsof -a -p $p -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "$d"/* ]] && print $p; done; }
 starts() { grep -c '^start' "$(tprefix $1)/drive_c/Program Files (x86)/Steam/starts.txt" 2>/dev/null || print 0; }
