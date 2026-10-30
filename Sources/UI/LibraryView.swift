@@ -147,17 +147,20 @@ extension ContentView {
     }
 
     // Full-bleed cover on a #0D0D0D tile, square corners. Launcher logos shown unmodified; game icons centred on the surface, no glow.
+    // Images from Model.coverImage (decoded once). Reading artVersion re-renders when Steam art arrives without .id resetting the tile.
     func cover(_ p: String) -> some View {
-        let art = m.artPath(p).flatMap { NSImage(contentsOfFile: $0) }, img = Image(nsImage: art ?? m.icons[p] ?? NSWorkspace.shared.icon(for: .applicationBundle))
-        return Color.clear.aspectRatio(isLauncher(p) ? 1 : 3 / 4, contentMode: .fit)   // one aspect per section: launchers square, games 3:4
+        let _ = m.artVersion
+        let ns = m.coverImage(p)
+        let hasArt = m.artPath(p) != nil && m.artCache[p] != nil
+        let img = Image(nsImage: ns)
+        return Color.clear.aspectRatio(isLauncher(p) ? 1 : 3 / 4, contentMode: .fit)
             .overlay {
-                if art != nil { img.resizable().interpolation(.high).scaledToFill() }
+                if hasArt { img.resizable().interpolation(.high).scaledToFill() }
                 else { img.resizable().interpolation(.high).scaledToFit().padding(Cosmo.Space.l) }
             }
             .background(Cosmo.surface)
             .clipShape(RoundedRectangle(cornerRadius: Cosmo.Radius.card))
             .overlay(RoundedRectangle(cornerRadius: Cosmo.Radius.card).strokeBorder(Cosmo.hairline, lineWidth: 1))
-            .id(m.artVersion)
     }
 
     // MARK: - Add game, notices, empty, activity
