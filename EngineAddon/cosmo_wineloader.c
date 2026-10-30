@@ -189,19 +189,21 @@ static int ensure_copy(const char *src, const char *dst)
     if (stat(src, &ss) != 0) return -1;
     if (stat(dst, &ds) == 0 && ds.st_mtime >= ss.st_mtime && ds.st_size == ss.st_size
         && S_ISREG(ds.st_mode)) return 0;
-    unlink(dst);
+    /* Steam starts several helpers at once: write a private temp file and rename it into place, so no process ever
+       exec's a half-written copy (a running process keeps the inode it started from). */
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof tmp, "%s.%d.tmp", dst, (int)getpid());
     FILE *in = fopen(src, "rb");
     if (!in) return -1;
-    FILE *out = fopen(dst, "wb");
+    FILE *out = fopen(tmp, "wb");
     if (!out) { fclose(in); return -1; }
     char buf[1 << 16];
     size_t r;
     while ((r = fread(buf, 1, sizeof buf, in)) > 0) {
-        if (fwrite(buf, 1, r, out) != r) { fclose(in); fclose(out); unlink(dst); return -1; }
+        if (fwrite(buf, 1, r, out) != r) { fclose(in); fclose(out); unlink(tmp); return -1; }
     }
     fclose(in);
-    fclose(out);
-    chmod(dst, 0755);
+    if (fclose(out) != 0 || chmod(tmp, 0755) != 0 || rename(tmp, dst) != 0) { unlink(tmp); return -1; }
     return 0;
 }
 
