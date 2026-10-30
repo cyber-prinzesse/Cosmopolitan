@@ -28,6 +28,12 @@ Every installed driver folder and GStreamer is byte-identical to Template-1.0.24
 - A driver folder that goes missing is restored from the verified local template, not from a newer upstream release.
 - Already on your disk: `~/Library/Application Support/Sikarugir/Template/Template-1.0.24.app` still holds Sikarugir's copy of D3DMetal, fetched earlier by the old weekly job or setup. Cosmopolitan doesn't use it. Removing that folder is your call, because Sikarugir's own app may manage this location.
 
+## In progress: Cosmos, Cosmopolitan's own engine (not installed by the app yet)
+
+| Component | Version | Source | Pin | Licence | Status |
+|---|---|---|---|---|---|
+| Cosmos (Wine 11) | `cosmos-11.0-r<N>` | github.com/cyber-prinzesse/cosmos-engine (`build.yml`, `cosmos_revision`) | tarball SHA-256 in each build's `.sha256`; `COSMOS-BUILD.txt` lists source pin, patches, commit | LGPL-2.1-or-later (Wine) | CrossOver 26.3 source + Highball's series + Cosmopolitan's 0028–0031 and theme; bundles its own host libraries. Test builds only; see `docs/adr/0001-cosmos-engine.md` |
+
 ## Upstream replacements (not installed; each needs to pass the suite first)
 
 | Component | Official source | Licence |

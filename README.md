@@ -24,6 +24,18 @@ Updates arrive inside the app (Sparkle). Every GitHub release carries the signed
 feed, so publishing a release with `scripts/release.sh` is what ships an update; the `.zip`
 is what the updater downloads, the `.dSYM.zip` holds the debug symbols for crash reports.
 
+## Engine: Cosmos
+
+<img src="docs/design/cosmos-icon-128.png" width="64" align="right" alt="The Cosmos icon: a martini glass holding a galaxy">
+
+Cosmopolitan is moving to its own Wine engine, **Cosmos**, built in the open at
+[cyber-prinzesse/cosmos-engine](https://github.com/cyber-prinzesse/cosmos-engine). Cosmos is based on Wine: CodeWeavers'
+CrossOver 26.3 source with Highball's patch series and Cosmopolitan's own patches (each program's own Dock name, one
+Dock icon for Steam, dark title bars, the Cosmos icon, a black theme for the windows Wine draws itself, D3D12 games no
+longer freezing on a fault in Apple's Metal threads). Every build names its exact source and patches, and carries the
+libraries it needs. Today the app still runs on Sikarugir's Wine 10 build; Cosmos becomes the default once it passes the
+test suite. The decision and its steps: [`docs/adr/0001-cosmos-engine.md`](docs/adr/0001-cosmos-engine.md).
+
 ## Stores
 
 **Stores…** next to the programs grid. *Install Battle.net* downloads the official installer into the bottle and
@@ -74,7 +86,8 @@ Built on the Mac side instead of inside Wine: game keyboard layout (switches to 
 
 ## Credits
 
-Wine and the Sikarugir Wine builds, DXMT (3Shain), DXVK/D9VK (doitsujin, Gcenx),
+Wine, CodeWeavers' CrossOver sources, Highball's engine recipe and patches (gauthierpiarrette), the Sikarugir Wine
+builds, DXMT (3Shain), DXVK/D9VK (doitsujin, Gcenx),
 MoltenVK (Khronos), GStreamer, cnc-ddraw, SDL, winetricks, DOSBox Staging, the Highball
 database (CC0), ProtonDB and umu-protonfixes. Full list with licenses in
 `THIRD_PARTY_NOTICES.md`.
