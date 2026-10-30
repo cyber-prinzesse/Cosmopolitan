@@ -33,6 +33,8 @@ extension ContentView {
             Spacer(minLength: 0)
             HStack(spacing: Cosmo.Space.m) {
                 layoutToggle
+                CircularGlassButton(systemImage: "magnifyingglass", label: "Find apps") { m.findAppsAskingFolder() }
+                CircularGlassButton(systemImage: "arrow.clockwise", label: "Refresh", spinning: m.refreshing) { m.refreshLibrary() }
                 addGameMenu
                 if showAdvancedOption { CircularGlassButton(systemImage: "slider.horizontal.3", label: "Tools") { advancedMode = true } }
                 CircularGlassButton(systemImage: "gearshape", label: "Settings") { openSettings() }

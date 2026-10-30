@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject var m = Model.shared   // shared with Settings
     @State var newName = ""
+    @State var showNewBottle = false
     @State var confirmDelete = false
     @State var uninstallExe: String? = nil
     @State var optExe: String? = nil
@@ -34,7 +35,7 @@ struct ContentView: View {
     @State var loginResult: (ok: Bool, message: String)? = nil   // GOG: what the sheet shows after the sign-in
     var body: some View {
         Group { if advancedMode { advancedView } else { libraryView } }   // item 39: the Library; Advanced is the previous window
-        .frame(minWidth: 760, minHeight: 600)
+        .frame(minWidth: advancedMode ? 980 : 760, minHeight: 600)   // Advanced has three columns (bottle, programs, log)
         .sheet(isPresented: $showOnboarding) { OnboardingView(m: m, loginStore: $loginStore) { onboardingDone = true; showOnboarding = false }.frost() }
         .sheet(isPresented: $showWhatsNew) { whatsNewSheet.frost() }
         .onChange(of: m.askD3DMetal) { _, v in if v { showD3DM = true; m.askD3DMetal = false } }
@@ -73,20 +74,33 @@ struct ContentView: View {
             HStack(spacing: 12) { Button { advancedMode = false } label: { Label("Library", systemImage: "chevron.left") }.secondaryButton(); Text("Advanced").font(.system(size: 22, weight: .bold)); Spacer() }.padding(.horizontal, 20).padding(.top, 4)
             HSplitView {
                 VStack(alignment: .leading) {
-                    Text("Bottles").font(.headline)
-                    List(m.bottles, id: \.self, selection: Binding(get: { m.selected }, set: { m.selected = $0; m.scan() })) { Text($0).tag($0) }
-                        .scrollContentBackground(.hidden).background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    HStack {
-                        TextField("new bottle", text: $newName)
-                        Button("Create") { m.createBottle(newName); newName = "" }.disabled(newName.isEmpty || m.busy)
+                    // A bottle is the Windows folder games are installed into. With one bottle a list is only noise: show its name;
+                    // the list appears once there are two. New bottle sits in the menu with the other rarely used actions.
+                    if m.bottles.count > 1 {
+                        Text("Bottles").font(.headline)
+                        List(m.bottles, id: \.self, selection: Binding(get: { m.selected }, set: { m.selected = $0; m.scan() })) { Text($0).tag($0) }
+                            .scrollContentBackground(.hidden).background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .frame(maxHeight: 160)
+                    } else {
+                        Text("Bottle").font(.headline)
+                        Text(m.selected.isEmpty ? "None yet" : m.selected).foregroundStyle(.secondary)
+                            .help("The Windows folder your games and stores are installed into.")
+                    }
+                    if showNewBottle {
+                        HStack {
+                            TextField("new bottle", text: $newName).onSubmit { if !newName.isEmpty { m.createBottle(newName); newName = ""; showNewBottle = false } }
+                            Button("Create") { m.createBottle(newName); newName = ""; showNewBottle = false }.disabled(newName.isEmpty || m.busy)
+                        }
                     }
                     // Whole-bottle actions, rarely needed: one menu instead of eight buttons.
                     Menu("Manage bottle") {
+                        Button("New bottle…") { showNewBottle = true }.disabled(m.busy)
+                        Divider()
                         Button("Snapshots…") { showSnaps = true }.disabled(m.selected.isEmpty)
                         Button("Back up") { m.backupBottle() }.disabled(m.selected.isEmpty || m.busy)
                         Button("Archive to a file") { m.archiveBottle() }.disabled(m.selected.isEmpty || m.busy)
                         Button("Restore from a file…") { m.restoreBottle() }.disabled(m.busy)
-                        Button("Import from Whisky / CrossOver / Sikarugir…") { showImport = true }
+                        Button("Import bottles from other apps…") { showImport = true }
                         Divider()
                         Button("Share with other Mac users") { m.shareBottle() }.disabled(m.selected.isEmpty || m.busy)
                         Menu("Move to external drive") {   // §8.4 copies the bottle, leaves a link; hides while unplugged
@@ -137,8 +151,8 @@ struct ContentView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(14).frame(minWidth: 220, maxWidth: 360, maxHeight: .infinity, alignment: .topLeading).glassCard().padding(10)
                 VStack(alignment: .leading) {
+                    Text(m.selected.isEmpty ? "Programs" : "Programs in bottle “\(m.selected)”").font(.headline).lineLimit(1)
                     HStack {
-                        Text("Programs in \(m.selected)").font(.headline)
                         if let p = m.pendingSteamRestart {   // item 24: waiting for Steam to be idle; the user can decide now
                             Text("Steam restarts once it's idle (\(p.busy) now), so \(p.why).").font(.caption).foregroundStyle(.secondary).lineLimit(2)
                             Button("Restart now") { m.pendingSteamRestart = nil; m.restartSteam(p.bottle, because: p.why) }.controlSize(.small)
@@ -148,8 +162,8 @@ struct ContentView: View {
                         Button("Find apps") { m.findAppsAskingFolder() }.disabled(m.bottles.isEmpty || m.busy)
                             .help("Searches every bottle's C: drive (and an optional folder you pick) for programs; never adds a duplicate tile.")
                         Button("Run .exe / .msi…") { pick() }.disabled(m.busy)
-                        storesMenu
-                    }
+                        storesMenu.fixedSize()
+                    }.controlSize(.small)
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 16)], spacing: 16) {
                             ForEach(m.programs, id: \.self) { p in
@@ -183,9 +197,12 @@ struct ContentView: View {
                             }
                         }.padding(8)
                     }
+                }.padding(14).glassCard().padding(10)
+                // The log gets its own full-height column on the right instead of a short strip under the programs.
+                VStack(alignment: .leading) {
+                    Text("Log").font(.headline)
+                    Text("Drop an installer anywhere in this window — a bottle is created automatically if needed.").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     HStack {
-                        Text("Drop an installer anywhere in this window — a bottle is created automatically if needed.").font(.caption).foregroundStyle(.secondary)
-                        Spacer()
                         // Nine buttons didn't fit beside the hint at the default window size; two menus and one button do.
                         Menu("Checks") {
                             Button("Will it run?…") { showWIR = true }
@@ -219,8 +236,8 @@ struct ContentView: View {
                             .help("Copies a report with log, engine, drivers and Mac details to the clipboard, with your username and home folder removed.")
                     }.controlSize(.small)
                     ScrollView { Text(m.logView).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
-                        .padding(8).frame(height: 160).background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }.padding(14).glassCard().padding(10)
+                        .padding(8).frame(maxHeight: .infinity).background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }.padding(14).frame(minWidth: 260, idealWidth: 340, maxHeight: .infinity, alignment: .topLeading).glassCard().padding(10)
             }
         }
     }

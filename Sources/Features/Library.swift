@@ -5,6 +5,8 @@ import Network
 // words (never bottle, prefix, driver, DLL, registry, Wine, DirectX, Vulkan or msync); "Fix this game"; "Report a problem"; Play for a
 // game in any bottle; "Add game" with one bottle per store, created automatically.
 extension Model {
+    // How long "Starting <game>…" stays in the Library's activity line (test build: COSMO_TEST_STARTING_SECONDS).
+    static var startingLabelSeconds: Double { isTestBuild ? Double(ProcessInfo.processInfo.environment["COSMO_TEST_STARTING_SECONDS"] ?? "") ?? 12 : 12 }
     static let shared = Model()
 
     func watchNetwork() {
@@ -39,11 +41,29 @@ extension Model {
         return ("Ready", r.status == .yellow ? "Sets itself up the first time you play." : "Ready to play.", nil)
     }
 
+    // Library › Refresh: rescan every bottle, fetch missing covers, re-check each game. Spins for at least 0.8 s so a fast scan still reads.
+    func refreshLibrary() {
+        guard !refreshing else { return }
+        refreshing = true
+        Task { @MainActor in
+            let t0 = Date()
+            await Task.yield()
+            scan(); fetchArt(); verifyAll()
+            let left = 0.8 - Date().timeIntervalSince(t0)
+            if left > 0 { try? await Task.sleep(nanoseconds: UInt64(left * 1_000_000_000)) }
+            refreshing = false
+        }
+    }
     // Play: a game in another bottle selects that bottle first (every launch path works on the selected one).
     func play(_ p: String) {
         let b = bottleOf(p); if b != selected { selected = b; scan() }
         freeMemoryBeforePlay()
-        activity = "Starting \(appName(p))…"; launch(p)
+        let starting = "Starting \(appName(p))…"; activity = starting; launch(p)
+        // A game starts without making the app busy, so the busy→idle reset never fired and the line stayed for the whole session.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(Model.startingLabelSeconds * 1_000_000_000))
+            if activity == starting { activity = "" }
+        }
     }
     // "Fix this game": a snapshot, Troubleshoot and Repair of its bottle (Repair takes the snapshot), then the game is checked again. A
     // missing graphics component comes back from the pinned template; Apple's toolkit is the user's own step, so its sheet opens.
