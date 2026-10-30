@@ -18,6 +18,7 @@ extension Model {
         let icd = "{\"file_format_version\":\"1.0.0\",\"ICD\":{\"library_path\":\"\(unix)/libMVK.dylib\",\"api_version\":\"1.4.0\",\"is_portability_driver\":false}}"
         try? icd.write(toFile: "\(e)/MoltenVK_icd.json", atomically: true, encoding: .utf8)
         FileManager.default.createFile(atPath: "\(e)/dxmt_extescape", contents: nil)
+        _ = installNoDockAddon(e)
         let v = shell("'\(e)/bin/wine' --version 2>&1 | head -1")
         return v.hasPrefix("wine-") ? "  prepared (\(v), dylibs from \(Pins.sikarugirTemplate))\n" : "  prepared, but wine --version failed: \(v.prefix(80))\n"
     }
