@@ -55,16 +55,19 @@ poll 60 busy_up || fail "the busy stand-in did not start"
 
 out=$(ct --loader-name D "$GAME_DIR/bin/witcher3.exe" 2>&1)
 print -r -- "$out" | grep -q '^loader-name: Steam$' || fail "Steam game loader-name: $out"
-print -r -- "$out" | grep -q '^loader-path: Steam$' || fail "Steam game loader-path (nbsp→print): $(print -r -- "$out" | grep loader-path)"
-# Prune ran via loaderNamed: bad leftover gone; non-wine kept
+print -r -- "$out" | grep -q '^loader-path: cosmo_wineloader$' || fail "Steam game loader-path (dispatcher): $(print -r -- "$out" | grep loader-path)"
+[[ -x "$BIN/cosmo_wineloader" ]] || fail "cosmo_wineloader missing after --loader-name"
+[[ -x "$BIN/Steam" ]] || fail "host wine copy bin/Steam missing after --loader-name"
+# Prune ran via loaderNamed: bad leftover gone; non-wine kept; in-use copy kept
 [[ ! -e "$BIN/$BAD" ]] || fail "stale game-titled wine copy still in bin/: $BAD"
 [[ -f "$BIN/keep-me-not-wine" ]] || fail "pruned a non-wine file"
 [[ -f "$BIN/$BUSY" ]] || fail "pruned the loader copy a running game was started from"
 kill $BUSYPID 2>/dev/null; twineserver D -k 2>/dev/null; wait $BUSYPID 2>/dev/null
-print "ok: Steam game → loader-name Steam; pruned '$BAD'; left keep-me-not-wine and the running game's '$BUSY'"
+print "ok: Steam game → loader-name Steam via cosmo_wineloader; pruned '$BAD'; left keep-me-not-wine and '$BUSY'"
 
 out=$(ct --loader-name D "$ST/steam.exe" 2>&1)
 print -r -- "$out" | grep -q '^loader-name: Steam$' || fail "steam.exe itself: $out"
+print -r -- "$out" | grep -q '^loader-path: cosmo_wineloader$' || fail "steam.exe loader-path: $out"
 out=$(ct --loader-name D "$PF/Solo Game.exe" 2>&1)
 print -r -- "$out" | grep -q '^loader-name: Solo Game$' || fail "direct game should keep its name: $out"
 # Sanitizer: colon must not become hyphen-space
@@ -119,7 +122,60 @@ poll 30 cli_ok || { wait $launch_pid 2>/dev/null; grep -E '^\$ Steam ' "$T/launc
 if ls "$BIN" | grep -F 'Witcher 3-' >/dev/null; then fail "bin/ still has a Witcher 3- loader: $(ls "$BIN" | tr '\n' ' ')"; fi
 print "ok: live -applaunch process is Steam (pid $pid, exe=${base_ascii}); no game-titled loader"
 
+# Game child through the dispatcher (what Wine CreateProcess does with WINELOADER): own Dock label; Steam keeps "Steam".
+mkdir -p "$(tprefix D)/options"
+print $'childgame.exe\tChild Game Label' > "$(tprefix D)/options/dock-names.txt"
+cp "$(tprefix D)/drive_c/windows/system32/notepad.exe" "$GAME_DIR/bin/childgame.exe"
+sandbox-exec -p "$(tw_sandbox_profile)" env HOME="$TH" CFFIXED_USER_HOME="$TH" \
+  WINEPREFIX="$(tprefix D)" WINEDEBUG=-all WINEMSYNC=1 \
+  WINELOADER="$BIN/cosmo_wineloader" COSMO_LOADER_NAME=Steam \
+  "$BIN/cosmo_wineloader" "C:\\Program Files (x86)\\Steam\\steamapps\\common\\The Witcher 3\\bin\\childgame.exe" >/dev/null 2>&1 &
+CHILD_LP=$!
+dock_ascii() { osascript -e 'tell application "System Events" to get name of every UI element of list 1 of application process "Dock"' 2>/dev/null | sed $'s/\u00a0/ /g'; }
+child_up() {
+  local p labels
+  p=$(ps -axo pid=,command= | awk '/childgame\.exe/ && !/awk/ {print $1; exit}')
+  [[ -n "$p" ]] || return 1
+  lsappinfo list | grep "pid = $p " | grep -q 'type="Foreground"' || return 1
+  labels=$(dock_ascii)
+  print -r -- "$labels" | grep -F 'Child Game Label' >/dev/null
+}
+poll 60 child_up || fail "game child did not get Dock label 'Child Game Label'"
+dock_now=$(dock_ascii)
+print -r -- "$dock_now" | grep -F 'Steam' >/dev/null || fail "Steam Dock label gone while child ran: $dock_now"
+print -r -- "$dock_now" | grep -F 'Child Game Label' >/dev/null || fail "child Dock label missing: $dock_now"
+# Child's loader file must be the named copy, not cosmo_wineloader / wine.
+cpid=$(ps -axo pid=,command= | awk '/childgame\.exe/ && !/awk/ {print $1; exit}')
+cpath=$(lsof -a -p "$cpid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | grep '/wswine.bundle/bin/' | head -1)
+cbase=${cpath:t}; cbase=${cbase//$'\u00a0'/ }
+[[ "$cbase" == "Child Game Label" ]] || fail "child loader file is '$cbase' (path $cpath), want 'Child Game Label'"
+kill $CHILD_LP 2>/dev/null; wait $CHILD_LP 2>/dev/null
+print "ok: Steam -applaunch host stays Steam; game child Dock label is its dock-names entry"
+
 twine D 'C:\Program Files (x86)\Steam\steam.exe' -shutdown >/dev/null 2>&1
 kill $launch_pid 2>/dev/null; wait $launch_pid 2>/dev/null
+twineserver D -k 2>/dev/null
 tw_check || fail "your real data changed"
+print "ok: Wine 10 dock-label dispatcher"
+
+# Wine 11 (highball): unix/wine becomes the dispatcher; named copies live beside ntdll.
+R29="$REAL_HOME/Library/Application Support/Cosmopolitan Beta/engines/highball-11.0-r29"
+[[ -d "$R29/wswine.bundle" ]] || R29="$REAL_HOME/Cosmopolitan-engine-trials/highball-11.0-r29"
+if [[ -e "$R29/wswine.bundle/lib/wine/x86_64-unix/wine" || -e "$R29/engine/lib/wine/x86_64-unix/wine" ]]; then
+  testenv_cleanup
+  COSMO_ENGINE=highball-11.0-r29 COSMO_ENGINE_DIR="$R29" testenv_init >/dev/null || fail "Wine 11 testenv"
+  eval "$(testenv_trap_cleanup)"
+  tw_snapshot
+  ct --newbottle W11 >/dev/null 2>&1
+  U11="$TS/engines/$ENGINE/wswine.bundle/lib/wine/x86_64-unix"
+  out=$(ct --loader-name W11 "$(tprefix W11)/drive_c/windows/system32/notepad.exe" 2>&1)
+  print -r -- "$out" | grep -q '^loader-path: cosmo_wineloader$' || fail "Wine 11 loader-path: $out"
+  [[ -x "$U11/wine" ]] || fail "Wine 11: missing unix/wine"
+  strings "$U11/wine" | grep -q cosmo_dock_loader_v1 || fail "Wine 11: unix/wine is not the dispatcher"
+  [[ -f "$U11/wine.cosmo-real" ]] || fail "Wine 11: wine.cosmo-real backup missing"
+  tw_check || fail "your real data changed after Wine 11 check"
+  print "ok: Wine 11 unix/wine is cosmo_wineloader (real loader backed up)"
+else
+  print "note: highball-11 not on this Mac; skipped Wine 11 dispatcher check"
+fi
 print "PASS dock_names"

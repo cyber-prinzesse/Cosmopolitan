@@ -47,12 +47,43 @@ grep -qx $'witcher3.exe\tThe Witcher 3: Wild Hunt \u2014 Remastered' "$DN" || fa
 grep -qx $'redprelauncher.exe\tThe Witcher 3: Wild Hunt \u2014 Remastered' "$DN" || fail "dock-names.txt lacks redprelauncher.exe: $(cat "$DN" 2>&1)"
 print "ok: CDPR layout → redlauncher.exe=REDlauncher, witcher3.exe + redprelauncher.exe = game name"
 twine Q reg delete 'HKCU\Software\Wine\AppDefaults\notepad.exe\Mac Driver' /v NoDockIcon /f >/dev/null 2>&1; twineserver Q -w
+# AppName (not only dock-names.txt): a scan rewrites dock-names for Steam games and would drop a hand-appended notepad line.
+twine Q reg add 'HKCU\Software\Wine\AppDefaults\notepad.exe\Mac Driver' /v AppName /d $'Solo Name \u2014 Test' /f >/dev/null 2>&1; twineserver Q -w
+# Also pin via dock-names through the dispatcher directly (Cosmo --launch would rescan; this is the Steam-child path).
 print $'notepad.exe\tSolo Name \u2014 Test' >> "$(tprefix Q)/options/dock-names.txt"
-dock_name() {   # starts notepad in Q, prints its Dock name, stops the bottle
-  twine Q notepad.exe >/dev/null 2>&1 &
-  local p="" n="" i; for i in {1..30}; do sleep 0.5; p=$(ps -axo pid=,command= | awk '/notepad\.exe/ && !/awk/ {print $1; exit}'); [[ -n "$p" ]] && n=$(lsappinfo list | awk -v k="pid = $p " '/^ *[0-9]+\) /{l=$0} index($0,k){print l}' | sed -n 's/^ *[0-9]*) "\(.*\)" ASN.*/\1/p'); [[ "$n" == *Solo* ]] && break; done
-  print -r -- "$n"; twineserver Q -k; sleep 1; }
-n=$(dock_name); [[ "$n" == $'Solo Name \u2014 Test' ]] || fail "listed Dock name not applied: '$n'"
-print "ok: the add-on names the program from dock-names.txt ('$n')"
+# Dock label = loader *file name* (not lsappinfo). cosmo_wineloader → execv bin/<Name>.
+# Loader file names use U+00A0 for spaces; Dock shows them as spaces — normalize before matching.
+dock_labels() { osascript -e 'tell application "System Events" to get name of every UI element of list 1 of application process "Dock"' 2>/dev/null; }
+dock_labels_ascii() { dock_labels | sed $'s/\u00a0/ /g'; }
+want=$'Solo Name \u2014 Test'
+dock_name() {
+  local E="$TS/engines/$ENGINE/wswine.bundle" p="" i lp
+  sandbox-exec -p "$(tw_sandbox_profile)" env CFFIXED_USER_HOME="$TH" HOME="$TH" \
+    WINEPREFIX="$(tprefix Q)" WINEMSYNC=1 WINEDEBUG=-all \
+    WINELOADER="$E/bin/cosmo_wineloader" COSMO_LOADER_NAME=wine \
+    "$E/bin/cosmo_wineloader" "C:\\windows\\system32\\notepad.exe" >/dev/null 2>&1 &
+  lp=$!
+  for i in {1..60}; do
+    sleep 0.5
+    p=$(ps -axo pid=,command= | awk '/notepad\.exe/ && !/awk/ {print $1; exit}')
+    [[ -n "$p" ]] || continue
+    lsappinfo list | grep "pid = $p " | grep -q 'type="Foreground"' || continue
+    dock_labels_ascii | grep -F "$want" >/dev/null && break
+  done
+  local labels; labels=$(dock_labels_ascii)
+  print -r -- "$labels"
+  twineserver Q -k 2>/dev/null; kill $lp 2>/dev/null; wait $lp 2>/dev/null; sleep 1
+}
+# Install dispatcher before the Dock-name run (same as Cosmo's loaderNamed).
+ct --loader-name Q "$(tprefix Q)/drive_c/windows/system32/notepad.exe" >/dev/null 2>&1
+[[ -x "$TS/engines/$ENGINE/wswine.bundle/bin/cosmo_wineloader" ]] || fail "cosmo_wineloader not installed"
+labels=$(dock_name)
+print -r -- "$labels" | grep -F "$want" >/dev/null \
+  || fail "Dock label missing 'Solo Name — Test' (got: $labels) — lsappinfo alone is not enough"
+print "ok: Dock shows 'Solo Name — Test' for notepad (loader file name via cosmo_wineloader)"
+# NoDockIcon still works after the dispatcher path (re-check UIElement).
+twine Q reg add 'HKCU\Software\Wine\AppDefaults\notepad.exe\Mac Driver' /v NoDockIcon /d y /f >/dev/null 2>&1; twineserver Q -w
+t=$(dock_type); [[ "$t" == 'type="UIElement"' ]] || fail "NoDockIcon still required after dispatcher: $t"
+print "ok: NoDockIcon still → UIElement with dispatcher installed"
 tw_check
 print "PASS steam_dock_addon"
