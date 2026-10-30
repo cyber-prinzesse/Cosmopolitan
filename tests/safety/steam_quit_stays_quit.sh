@@ -76,5 +76,7 @@ restarted() { [[ "$(starts Q)" == 3 && -n "$(steampid Q)" ]]; }
 poll 60 restarted || fail "Cosmo restartSteam did not relaunch: starts=$(starts Q) out=$(print -r -- "$out" | tail -8)"
 print "ok: Cosmopolitan-owned restartSteam still relaunches Steam (starts=3)"
 
+twine Q 'C:\Program Files (x86)\Steam\steam.exe' -shutdown >/dev/null 2>&1
+twineserver Q -k 2>/dev/null
 tw_check || fail "your real data changed"
 print "PASS steam_quit_stays_quit"

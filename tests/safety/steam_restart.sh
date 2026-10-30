@@ -86,5 +86,9 @@ kill $(gp) 2>/dev/null
 alive $su0 || fail "U's Steam was stopped"
 real1=$(pgrep -f 'Steam.steam\.exe' | sort | tr '\n' ' '); for p in ${=real0}; do [[ "$p" == "$st0" || "$p" == "$st1" || "$p" == "$su0" ]] && continue; kill -0 $p 2>/dev/null || fail "a Steam outside the test (pid $p) was stopped"; done
 print "ok: U's Steam (pid $su0) and every Steam outside the test kept running throughout"
+# Stop stand-ins before EXIT cleanup (they used to leak: Wine argv is C:\…\steam.exe, missed by the old path matcher).
+twine T 'C:\Program Files (x86)\Steam\steam.exe' -shutdown >/dev/null 2>&1
+twine U 'C:\Program Files (x86)\Steam\steam.exe' -shutdown >/dev/null 2>&1
+twineserver T -k 2>/dev/null; twineserver U -k 2>/dev/null
 tw_check || fail "your real data changed"
 print "PASS steam_restart"

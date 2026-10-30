@@ -5,8 +5,9 @@
 #                   and COSMO_TEST_HOME all point at it, so the app's support folder, bottles and log live there)
 #   tw_snapshot / tw_check   tripwire over YOUR real data: bottles folder, Cosmopolitan log, Steam bottle, running Steam and app
 #                   (content hashes via tests/lib/tw.py; notes and failures name the changed files, and the keys for .reg files)
-#   testenv_cleanup  kills every process whose executable/argv[0] is under this run's $T/, stops wineservers, removes $T
-#                   (EXIT / INT / TERM — so fail(), Ctrl-C and timeouts cannot leave native stand-ins behind)
+#   testenv_cleanup  wineserver -k first, then kills every process whose *executable path* (proc_pidpath) is under this
+#                   run's $T/ (Wine rewrites argv to C:\… so argv matching misses notepad/steam.exe), then removes $T
+#                   (EXIT / INT / TERM — so fail(), Ctrl-C and timeouts cannot leave stand-ins behind)
 # Nothing here writes outside the throwaway folder. The engine and backends are APFS clones (no extra disk space).
 # testenv_init proves the sandbox on your real files every time it runs (see below). Safe under set -u.
 
@@ -157,7 +158,7 @@ _testenv_t_ok() {
   emulate -L zsh
   [[ -n "${1:-}" && "$1" =~ '^/private/tmp/cosmotest\.[A-Za-z0-9]{6}$' ]]
 }
-# pgrep -f pattern for processes under $1. Pure zsh (suffix is alphanumeric — no sed/python escape).
+# Former argv pgrep pattern (kept for cleanup_guard). Pure zsh — suffix is alphanumeric.
 # Prints the pattern and returns 0, or prints nothing and returns 1 if $1 is unsafe.
 _testenv_kill_pattern() {
   emulate -L zsh
@@ -180,22 +181,52 @@ _testenv_is_self_or_ancestor() {
   done
   return 1
 }
-# PIDs whose command line starts with $1/ (this throwaway only). Empty on any bad input — never a broad match.
-# Re-checks each candidate with ps before accepting. Does not signal.
+# Executable path of pid $1 via libproc (empty if gone). Does not signal.
+_testenv_pid_exe() {
+  emulate -L zsh
+  local p=$1
+  [[ "$p" == <-> ]] || return 1
+  python3 -I -c '
+import ctypes, ctypes.util, sys
+pid = int(sys.argv[1])
+libc = ctypes.CDLL(ctypes.util.find_library("c") or "/usr/lib/libSystem.B.dylib")
+buf = ctypes.create_string_buffer(4096)
+n = libc.proc_pidpath(pid, buf, ctypes.c_uint32(len(buf)))
+if n > 0: print(buf.value.decode(), end="")
+' "$p" 2>/dev/null
+}
+# PIDs whose *executable path* (proc_pidpath) is under $1/ — this throwaway only.
+# Wine replaces argv with C:\…\notepad.exe / steam.exe, so argv matching misses every Windows program.
+# Empty on any bad input. Does not signal. Never uses broad pgrep -f for selection.
 _testenv_pids_under_T() {
   emulate -L zsh
-  local t="${1:-}" pat p cmd puid uid
+  local t="${1:-}" p puid uid exe
   local -a out=()
-  pat=$(_testenv_kill_pattern "$t") || {
-    print -u2 "cleanup: refusing to kill (bad pattern)"
+  _testenv_t_ok "$t" || {
+    print -u2 "cleanup: refusing to list (bad \$T)"
     return 1
   }
   uid=$(id -u)
-  for p in $(pgrep -f "$pat" 2>/dev/null); do
+  # One libproc pass: listallpids + proc_pidpath. uid / self checks stay in zsh.
+  for p in $(python3 -I -c '
+import ctypes, ctypes.util, sys
+t = sys.argv[1].rstrip("/") + "/"
+libc = ctypes.CDLL(ctypes.util.find_library("c") or "/usr/lib/libSystem.B.dylib")
+n = libc.proc_listallpids(None, 0)
+if n <= 0: sys.exit(0)
+pids = (ctypes.c_int * (n + 64))()
+got = libc.proc_listallpids(pids, ctypes.sizeof(pids))
+buf = ctypes.create_string_buffer(4096)
+for i in range(max(got, 0)):
+    pid = int(pids[i])
+    if pid <= 1: continue
+    if libc.proc_pidpath(pid, buf, ctypes.c_uint32(len(buf))) <= 0: continue
+    if buf.value.decode().startswith(t): print(pid)
+' "$t" 2>/dev/null); do
     [[ "$p" == <-> ]] || continue
     _testenv_is_self_or_ancestor "$p" && continue
-    cmd=$(ps -o command= -p "$p" 2>/dev/null) || continue
-    [[ "$cmd" == "$t/"* ]] || continue
+    exe=$(_testenv_pid_exe "$p") || continue
+    [[ "$exe" == "$t/"* ]] || continue
     puid=$(ps -o uid= -p "$p" 2>/dev/null | tr -d ' ')
     [[ "$puid" == "$uid" ]] || continue
     out+=("$p")
@@ -203,17 +234,31 @@ _testenv_pids_under_T() {
   (( ${#out} )) && print -r -- "${out[@]}"
   return 0
 }
-# Signal only after a fresh ps check that the command still starts with $t/.
+# Signal only after a fresh proc_pidpath check that the executable is still under $t/.
 _testenv_kill_checked() {
   emulate -L zsh
-  local sig=$1 p=$2 t=$3 cmd puid
+  local sig=$1 p=$2 t=$3 exe puid
   [[ "$p" == <-> && -n "$t" ]] || return 1
+  _testenv_t_ok "$t" || return 1
   _testenv_is_self_or_ancestor "$p" && return 1
-  cmd=$(ps -o command= -p "$p" 2>/dev/null) || return 1
-  [[ "$cmd" == "$t/"* ]] || return 1
+  exe=$(_testenv_pid_exe "$p") || return 1
+  [[ "$exe" == "$t/"* ]] || return 1
   puid=$(ps -o uid= -p "$p" 2>/dev/null | tr -d ' ')
   [[ "$puid" == "$(id -u)" ]] || return 1
   kill "-$sig" "$p" 2>/dev/null
+}
+# Print leftover processes under $1 to stderr (pid + executable path). Returns 1 if any remain.
+_testenv_report_leftovers() {
+  emulate -L zsh
+  local t="${1:-}" p exe
+  local -a left=()
+  _testenv_t_ok "$t" || return 0
+  for p in $(_testenv_pids_under_T "$t" 2>/dev/null); do
+    exe=$(_testenv_pid_exe "$p")
+    print -u2 "cleanup: leftover pid $p exe=${exe:-?}"
+    left+=("$p")
+  done
+  (( ${#left} == 0 ))
 }
 testenv_cleanup() {
   emulate -L zsh
@@ -221,10 +266,18 @@ testenv_cleanup() {
   [[ -z "${TESTENV_CLEANED:-}" ]] || return 0
   TESTENV_CLEANED=1
   [[ -n "${TESTID:-}" ]] && defaults delete "$TESTID" >/dev/null 2>&1   # the test build's own preferences domain, never your app's
-  # Native stand-ins + test app live under $T/; wineserver -k never reaches them. Kill only after strict path checks.
-  local p
+  local p ws b
   local -a pids=()
-  if _testenv_t_ok "$T" && _testenv_kill_pattern "$T" >/dev/null; then
+  # 1) Ask each bottle's wineserver to stop its Windows programs while the server is still alive.
+  #    (Killing wineserver first by argv-match used to leave notepad/steam.exe orphans.)
+  ws=""
+  [[ -n "${TS:-}" && -x "$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" ]] && ws="$TS/engines/$ENGINE/wswine.bundle/bin/wineserver"
+  if [[ -n "$ws" ]]; then
+    for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
+    for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done
+  fi
+  # 2) Kill whatever is still running from an executable under $T/ (native stand-ins, leftover Wine loaders, wineserver).
+  if _testenv_t_ok "$T"; then
     pids=($(_testenv_pids_under_T "$T" 2>/dev/null))
     for p in $pids; do _testenv_kill_checked TERM "$p" "$T"; done
     if (( ${#pids} )); then
@@ -232,14 +285,10 @@ testenv_cleanup() {
       pids=($(_testenv_pids_under_T "$T" 2>/dev/null))
       for p in $pids; do _testenv_kill_checked KILL "$p" "$T"; done
     fi
+    # Visible leak report before the folder disappears (folder gone ≠ processes gone).
+    _testenv_report_leftovers "$T" || true
   else
-    print -u2 "cleanup: refusing to kill (bad pattern)"
-  fi
-  local ws="$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" b
-  [[ -x "$ws" ]] || ws=""
-  if [[ -n "$ws" && -n "${TS:-}" ]]; then
-    for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
-    for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done   # gone before the folder is
+    print -u2 "cleanup: refusing to kill (bad \$T)"
   fi
   _testenv_t_ok "$T" && rm -rf "$T"
 }

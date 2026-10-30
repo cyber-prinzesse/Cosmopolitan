@@ -43,5 +43,6 @@ opts=$(cat "$(tprefix H)/options/steam.exe.env" 2>/dev/null)
 [[ "$out" != *"crashed within 30 s"* || "$out" != *"trying"* ]] || fail "driverFallback ran on steam.exe: $(print -r -- "$out" | grep crash | tail -3)"
 print "ok: steam.exe early crash does not get a driver-fallback pin"
 
+twineserver H -k 2>/dev/null
 tw_check || fail "your real data changed"
 print "PASS steam_host_drivers"

@@ -3,7 +3,7 @@
 # WINELOADER with <bin>/<basename of argv[0]> for every child, so cosmo_wineloader passes itself as argv[0]; without that
 # every child ran from its parent's loader copy and kept the parent's name (1.3.23). Stand-ins: HostApp.exe starts notepad.
 source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
-fail() { print "FAIL: $*"; twineserver K -k 2>/dev/null; exit 1; }   # stop the bottle first: cleanup cannot match Wine processes by path
+fail() { print "FAIL: $*"; twineserver K -k 2>/dev/null; exit 1; }   # stop the bottle first so EXIT cleanup is quick
 tw_snapshot
 ct --newbottle K >/dev/null 2>&1; [[ -d "$(tprefix K)/drive_c" ]] || fail "throwaway bottle not created"
 PF="$(tprefix K)/drive_c/Program Files/HostApp"; mkdir -p "$PF"
