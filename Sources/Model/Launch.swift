@@ -40,10 +40,64 @@ extension Model {
     // Dock label: macOS names the process after its executable file. A symlink is forgotten (Wine re-execs through the real path) and a
     // bundle path breaks Steam's first window, but a *copy* of the 27 KB loader named after the program, kept in the engine's bin folder so
     // libraries resolve, survives the re-exec — the CrossOver trick. Children inherit it, so Steam's helpers are "Steam" too.
+    //
+    // Name the loader after the process Wine actually starts, not the Library tile: a Steam game is steam.exe -applaunch <id>, so the
+    // loader must be "Steam" or the Dock keeps the game's title for the whole Steam session (seen as "The Witcher 3- Wild Hunt — …").
+    static let storeLoaderNames = ["Steam", "Battle.net", "Epic Games", "GOG Galaxy", "EA app", "Ubisoft Connect"]
+    // Display → loader file base: ":" / "/" become spaces (not "-"), so "Witcher 3: Wild" stays "Witcher 3 Wild", not "Witcher 3- Wild".
+    static func sanitizeLoaderFileName(_ raw: String) -> String {
+        var s = raw
+        for ch in [":", "/", "\\"] { s = s.replacingOccurrences(of: ch, with: " ") }
+        while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
+        s = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        s = s.replacingOccurrences(of: "\0", with: "").replacingOccurrences(of: "/", with: "-")
+        return s.isEmpty ? "wine" : s
+    }
+    // Which Dock / process name this library exe should use when Cosmopolitan starts Wine for it.
+    static func loaderProcessName(for exe: String) -> String {
+        let base = (exe as NSString).lastPathComponent.lowercased()
+        // Steam games: Cosmo always starts steam.exe -applaunch (SteamLaunch.launchCmd); name after Steam, never the game title.
+        if steamGames[exe] != nil || base == "steam.exe" { return "Steam" }
+        switch base {
+        case "epicgameslauncher.exe": return "Epic Games"
+        case "galaxyclient.exe", "galaxyclienthelper.exe": return "GOG Galaxy"
+        case "battle.net launcher.exe", "battle.net.exe": return "Battle.net"
+        case "eadesktop.exe", "ea desktop.exe", "origin.exe": return "EA app"
+        case "ubisoftconnect.exe", "upc.exe": return "Ubisoft Connect"
+        default: break
+        }
+        return sanitizeLoaderFileName(appName(exe))
+    }
+    // Remove leftover loader copies that are byte-identical to bin/wine (never other files). Keeps store host names + the one in use,
+    // and every copy a running process was started from: Wine starts a program's child processes (REDprelauncher → witcher3.exe,
+    // crash handlers, launcher hand-offs) through the same file, so deleting it under a running game breaks its next child.
+    static func pruneWineLoaderCopies(binDir: String, winePath: String, keeping: Set<String>) {
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(atPath: binDir) else { return }
+        let running = runningExecutables()
+        for f in items where f != "wine" {
+            let path = binDir + "/" + f
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue else { continue }
+            if keeping.contains(f) || running.contains(path) || running.contains(realPath(path)) { continue }
+            guard fm.contentsEqual(atPath: path, andPath: winePath) else { continue }   // only exact wine copies
+            try? fm.removeItem(atPath: path)
+        }
+    }
+    // Executable paths of every process (libproc: `ps` is setuid and can't run sandboxed).
+    static func runningExecutables() -> Set<String> {
+        let n = proc_listallpids(nil, 0)
+        guard n > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(n) + 64)
+        let got = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
+        var out = Set<String>(), buf = [CChar](repeating: 0, count: 4096)   // PROC_PIDPATHINFO_MAXSIZE
+        for p in pids.prefix(max(got, 0)) where p > 0 && proc_pidpath(p, &buf, UInt32(buf.count)) > 0 { out.insert(String(cString: buf)) }
+        return out
+    }
     func loaderNamed(_ exe: String) -> String {
         // Spaces become no-break spaces: the Dock shows them as spaces, but a loader path with an ASCII space breaks programs that start
         // Windows services (GOG Galaxy's client service page-faulted and the client never got its window).
-        let ascii = appName(exe).replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let ascii = Model.loaderProcessName(for: exe)
         let name = ascii.replacingOccurrences(of: " ", with: "\u{00A0}")
         guard name != "wine", !name.isEmpty else { return wineBin }
         let dir = (wineBin as NSString).deletingLastPathComponent, copy = dir + "/" + name, fm = FileManager.default
@@ -51,6 +105,11 @@ extension Model {
         let fresh = (try? fm.attributesOfItem(atPath: copy))?[.modificationDate] as? Date ?? .distantPast
         let src = (try? fm.attributesOfItem(atPath: wineBin))?[.modificationDate] as? Date ?? .distantPast
         if fresh < src { try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: wineBin, toPath: copy) }   // refresh after an engine update
+        // Drop stale game-titled loaders (exact wine copies only), e.g. "The Witcher 3- Wild Hunt — Remastered" from the old ":"→"-" rule.
+        var keep = Set(Model.storeLoaderNames.map { $0.replacingOccurrences(of: " ", with: "\u{00A0}") })
+        keep.formUnion(Model.storeLoaderNames)
+        keep.insert(name); keep.insert(ascii)
+        Model.pruneWineLoaderCopies(binDir: dir, winePath: wineBin, keeping: keep)
         return fm.fileExists(atPath: copy) ? copy : wineBin
     }
     // The Dock/Launchpad entry of one game (the same launcher the Library keeps for every game, item 37), shown in Finder.
