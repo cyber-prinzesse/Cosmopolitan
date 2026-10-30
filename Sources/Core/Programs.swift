@@ -72,9 +72,9 @@ func libraryExeScore(_ p: String) -> Int {
     var score = 100 - depth * 15
     if norm(baseName) == norm(r.name) { score += 60 }
     if ["galaxyclient", "battle.net launcher", "steam", "epicgameslauncher", "eadesktop", "ubisoftconnect", "upc"].contains(baseName) { score += 80 }
-    if baseName.contains("launcher") && !baseName.contains("redprelauncher") { score += 25 }
-    if baseName.contains("redprelauncher") || baseName == "redlauncher" { score -= 120 }   // CDPR: prefer witcher3 when both are candidates
-    if baseName.hasSuffix("-win64-shipping") || baseName.hasSuffix("-shipping") { score += 90 }
+    // Same weights as before the cross-bottle scan: an existing tile must keep its exe (options, playtime, save records are named
+    // after it), so REDprelauncher and Unreal bootstraps are not re-ranked here; "red:"/"ue:" identities already merge the pair.
+    if baseName.contains("launcher") { score += 25 }
     if ["x86", "x86_64", "x64", "win64", "win32", "bin", "binaries"].contains(((p as NSString).deletingLastPathComponent as NSString).lastPathComponent.lowercased()) { score += 10 }
     if ["cef", "bdk", "crashpad", "tools", "support", "redist", "_commonredist", "systeminfo"].contains(where: { p.lowercased().contains("/\($0)/") }) { score -= 100 }
     if baseName.hasPrefix("battle.net") && baseName != "battle.net launcher" { score -= 30 }
@@ -104,8 +104,6 @@ func isHelperExe(_ p: String) -> Bool {
     let n = (p as NSString).lastPathComponent.lowercased()
     if skipExes.contains(where: { n.contains($0) }) { return true }
     if isReporterOrMonitorExe(n) { return true }
-    // REDprelauncher when the real game exe from launcher-configuration.json is present (and this path is not the Steam tile).
-    if n == "redprelauncher.exe" || n == "redlauncher.exe", Model.redGame((p as NSString).deletingLastPathComponent) != nil { return true }
     return false
 }
 

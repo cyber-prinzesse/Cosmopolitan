@@ -60,8 +60,9 @@ libline=$(print -r -- "$status1" | grep '^library: ')
 witcher=$(print -r -- "$status1" | grep -c 'steam:292030' || true)
 [[ "$witcher" == 1 ]] || fail "Witcher identity count=$witcher (want 1) — REDprelauncher store tile must stay: $status1"
 print -r -- "$status1" | grep -q 'The Witcher 3: Wild Hunt' || fail "store display name missing: $status1"
-# Prefer witcher3 over REDprelauncher when both exist (steam walk digs to depth 4; score cache is under options/).
-[[ -f "$(tprefix A)/options/.score-witcher3.exe" ]] || fail "expected options/.score-witcher3.exe (tile should be the game exe, not only REDprelauncher)"
+# The Steam tile keeps the exe it always had (REDprelauncher here): the user's Witcher options and playtime are named after it.
+print -r -- "$status1" | grep 'steam:292030' | grep -q 'REDprelauncher.exe' || fail "Witcher tile moved off REDprelauncher.exe (its options/playtime would be lost): $(print -r -- "$status1" | grep 'steam:292030')"
+print -r -- "$status1" | grep -q ' witcher3.exe$' && fail "witcher3.exe listed as a second tile: $status1"
 # Battle.net: one battlenet: identity (Launcher + Battle.net.exe share it)
 bnid=$(print -r -- "$status1" | grep -c 'battlenet:' || true)
 [[ "$bnid" == 1 ]] || fail "Battle.net identity count=$bnid (want 1): $(print -r -- "$status1" | grep -i battle)"
@@ -83,7 +84,7 @@ print "ok: --find added no helpers; second --find added 0"
 EXT="$T/external/SomeGame"; mkdir -p "$EXT"; cp "$T/g.exe" "$EXT/SomeGame.exe"
 ct --find A "$EXT" >/dev/null 2>&1
 setopt NULL_GLOB
-ls "$EXT"/.cosmo-score-*(N) 2>/dev/null | grep -q . && fail "wrote .cosmo-score-* beside external exe: $(ls -A "$EXT")"
+stray=("$EXT"/.cosmo-score-*(N)); (( ${#stray} )) && fail "wrote .cosmo-score-* beside external exe: $(ls -A "$EXT")"   # (N): no match = empty, never a bare ls
 unsetopt NULL_GLOB
 print "ok: no .cosmo-score-* beside external-folder exes"
 

@@ -373,25 +373,20 @@ import Network
                 }
                 return out
             }
-            // Depth 2 often only sees REDprelauncher at the install root; dig to 4 when every shallow hit is a helper.
-            var found1 = exes(2)
-            if found1.isEmpty || found1.allSatisfy({ isHelperCandidate("\(dir)/\($0)") }) { found1 = exes(4) }
+            var found1 = exes(2); if found1.isEmpty { found1 = exes(4) }
             // The game's own exe: name matching the game (Magicka2.exe in engine/) beats bigger extras (an interactive map, an editor).
             let norm = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
             let game = norm(val("name")), inst = norm(val("installdir"))
             func score(_ n: String) -> Int {
                 let base = norm(((n as NSString).lastPathComponent as NSString).deletingPathExtension)
-                var s = min((try? FileManager.default.attributesOfItem(atPath: "\(dir)/\(n)"))?[.size] as? Int ?? 0, 200_000_000) / 10_000_000   // 0–20 by size — attributes only
+                var s = min((try? FileManager.default.attributesOfItem(atPath: "\(dir)/\(n)"))?[.size] as? Int ?? 0, 200_000_000) / 10_000_000   // 0–20 by size
                 if base == game || base == inst { s += 100 } else if !base.isEmpty, game.hasPrefix(base) || base.hasPrefix(game) || inst.hasPrefix(base) || base.hasPrefix(inst) { s += 60 }
-                if base.hasSuffix("win64shipping") || base.hasSuffix("shipping") { s += 90 }
-                if base.contains("redprelauncher") || base == "redlauncher" { s -= 120 }
                 if ["map", "editor", "tool", "config", "settings", "benchmark", "server", "sdk", "manual", "soundtrack"].contains(where: { n.lowercased().contains($0) }) { s -= 80 }
                 return s
             }
-            // Prefer a non-helper (witcher3 over REDprelauncher) when both are under the installdir.
-            let pick = found1.filter { !isHelperCandidate("\(dir)/\($0)") }.max(by: { score($0) < score($1) })
-                ?? found1.max(by: { score($0) < score($1) })
-            guard let exe = pick else { continue }
+            // A Steam tile keeps the exe it always had: options, playtime and save-backup records are named after it (the user's
+            // Witcher settings live in REDprelauncher.exe.env), so picking another exe here would silently drop them.
+            guard let exe = found1.max(by: { score($0) < score($1) }) else { continue }
             steamGames["\(dir)/\(exe)"] = (id, val("name"))
             found.append("\(dir)/\(exe)")
         }

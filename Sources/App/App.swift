@@ -144,7 +144,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
             m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\nbattery summary: \(m.batterySummary())\nbattery profile: \(powerReason() ?? "off")\n"
             let ids = m.library.map(libraryIdentity), dup = ids.count - Set(ids).count
             m.log += "library: \(m.library.count) games, \(dup) listed twice\n"
-            for p in m.library { m.log += "  \(appName(p)) [\(m.bottleOf(p))] \(libraryIdentity(p))\n" }
+            for p in m.library { m.log += "  \(appName(p)) [\(m.bottleOf(p))] \(libraryIdentity(p)) \((p as NSString).lastPathComponent)\n" }
         default: m.troubleshoot() }
         print(m.log); exit(cliExitCode)
     }
