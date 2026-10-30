@@ -116,6 +116,8 @@ extension Model {
     // (its XInput hooks don't work under Wine, so XInput is disabled for steam.exe only), and 96 DPI keeps its window a normal size.
     // Systray must be on: Steam's window-close minimizes to the tray on Windows; with Wine's tray Hidden (Sikarugir/CrossOver
     // templates set this), the window has nowhere to go and keeps reopening. The Mac driver shows a menu-bar status item instead.
+    // steam.exe gets no Dock icon of its own (NoDockIcon, our Mac-driver patch): Steam's window belongs to steamwebhelper.exe,
+    // so without it the Dock shows two "Steam" icons. Engines without the patch ignore the value.
     func steamBottleTweaks() {
         func reg(_ k: String, _ n: String, _ t: String, _ v: String) {   // recorded in the registry ledger as bottle settings (never pruned)
             let exe = k.components(separatedBy: "AppDefaults\\").dropFirst().first?.components(separatedBy: "\\").first ?? ""
@@ -127,7 +129,8 @@ extension Model {
         reg("HKCU\\Control Panel\\Desktop", "LogPixels", "REG_DWORD", "96")
         Model.regDelete(selected, "HKCU\\Software\\Wine\\Systray", "Hidden")   // template often sets Hidden=1 — Steam then can't minimize
         reg("HKCU\\Software\\Wine\\X11 Driver", "ShowSystray", "REG_SZ", "true")   // leftover X11 key from some templates; harmless on Mac
-        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI, system tray on).\n"
+        reg(Model.steamNoDockKey, "NoDockIcon", "REG_SZ", "y")
+        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI, system tray on, one Dock icon).\n"
     }
     // Battle.net.config: hardware acceleration and streaming off (CEF under Wine renders black otherwise). Merged, never clobbered.
     func battlenetConfig() {
