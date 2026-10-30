@@ -303,7 +303,11 @@ int main(int argc, char *argv[])
 
     setenv("WINELOADER", self, 1);
 
-    argv[0] = target;
+    /* The Dock labels a process with the file it was exec'd as (target). Wine's loader resolves argv[0] to find
+       ../lib/wine, and ntdll then overwrites WINELOADER with <bin>/<basename of argv[0]> for every child it starts
+       (init_paths; any inherited WINELOADER is dropped). Passing this dispatcher as argv[0] keeps children coming
+       back here, so a program Steam starts gets its own name instead of the parent's. */
+    argv[0] = self;
     execv(target, argv);
     fprintf(stderr, "cosmo_wineloader: execv %s: %s\n", target, strerror(errno));
     return 127;
