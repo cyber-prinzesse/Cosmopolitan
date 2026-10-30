@@ -43,11 +43,11 @@ kill -0 $TP1 2>/dev/null || fail "T helper died"
 kill -0 $UP1 2>/dev/null || fail "U helper died"
 print -r -- "ok: webhelpers T=$TP1 U=$UP1 foreign=$FOREIGN"
 
-export COSMO_TEST_STEAM_RUNNING=1
+# Per-invocation only — never `export` (leaks into later tests in the same shell and makes steamRunning always true).
 throttled_of() { print -r -- "$1" | sed -n 's/.*throttled=//p' | tr -d '\r' | head -1; }
 
 note "ct --steam-idle (cold start can take ~20 s)…"
-out=$(COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
 note "hidden tick done"
 print -r -- "$out" | grep -q "webhelpers=.*$TP1" || fail "Cosmo did not see T helper: $out"
 th=$(throttled_of "$out")
@@ -56,7 +56,7 @@ th=$(throttled_of "$out")
 [[ "$th" != *"$FOREIGN"* ]] || fail "foreign appeared in throttled list: $out"
 print -r -- "ok: hidden → throttled=$th (T only)"
 
-out=$(COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
 th=$(throttled_of "$out")
 [[ -z "$th" ]] || fail "still throttled when visible: $out"
 print -r -- "ok: visible → throttled empty"
@@ -70,24 +70,24 @@ os.execv(sys.argv[2], [r'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fake
 GP=$!
 sleep 0.3
 kill -0 $GP 2>/dev/null || fail "game stand-in died"
-game_busy() { ct --steam-busy T 2>&1 | grep -q 'busy: a game is running'; }
-poll 15 game_busy || fail "expected game busy, got: $(ct --steam-busy T 2>&1 | grep '^steam in')"
-out=$(COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
+game_busy() { COSMO_TEST_STEAM_RUNNING=1 ct --steam-busy T 2>&1 | grep -q 'busy: a game is running'; }
+poll 15 game_busy || fail "expected game busy, got: $(COSMO_TEST_STEAM_RUNNING=1 ct --steam-busy T 2>&1 | grep '^steam in')"
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
 th=$(throttled_of "$out")
 [[ "$th" == *"$TP1"* ]] || fail "T not throttled while game running: $out"
 print -r -- "ok: game running + visible → throttled=$th"
 
 kill -KILL $GP 2>/dev/null
-game_idle() { ct --steam-busy T 2>&1 | grep '^steam in' | grep -q 'idle'; }
+game_idle() { COSMO_TEST_STEAM_RUNNING=1 ct --steam-busy T 2>&1 | grep '^steam in' | grep -q 'idle'; }
 poll 15 game_idle || fail "game still busy after kill"
-out=$(COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
 th=$(throttled_of "$out")
 [[ -z "$th" ]] || fail "still throttled after game exit: $out"
 print -r -- "ok: game exit → throttled empty"
 
 # Opt-out.
 print 'STEAM_IDLE_DIET=0' > "$(tprefix T)/options/steam.exe.env"
-out=$(COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
 print -r -- "$out" | grep -q 'enabled=no' || fail "opt-out not reported: $out"
 th=$(throttled_of "$out")
 [[ -z "$th" ]] || fail "opt-out still throttled: $out"
@@ -95,7 +95,7 @@ print -r -- "ok: STEAM_IDLE_DIET=0 → no throttle"
 
 # Contention: re-enable diet, oversubscribe CPUs, T (BG) should get ~0% while U stays busy.
 rm -f "$(tprefix T)/options/steam.exe.env"
-out=$(COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
 th=$(throttled_of "$out")
 [[ "$th" == *"$TP1"* ]] || fail "re-throttle failed: $out"
 ncpu=$(sysctl -n hw.ncpu)
