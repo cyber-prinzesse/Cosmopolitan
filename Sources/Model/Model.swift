@@ -335,6 +335,7 @@ import Network
             .sorted { appName($0).lowercased() < appName($1).lowercased() }
         libraryAlts = alts
         if deduped != library { library = deduped }
+        writeDockNames(raw)   // games Steam starts get their own Dock name (cosmo_nodock.dylib)
         verifyAll(); fetchArt(); if !cliMode { syncLaunchers() }   // item 37: a Dock/Launchpad entry per game
         if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
         for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }

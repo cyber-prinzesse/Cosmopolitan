@@ -67,3 +67,34 @@ extension Model {
         return "One Dock icon for Steam: engine's Mac driver now honours NoDockIcon.\n"
     }
 }
+
+extension Model {
+    // Dock names for games Steam starts (they inherit Steam's process name): <bottle>/options/dock-names.txt, "exe<TAB>name" per
+    // line, read by cosmo_nodock.dylib when the game's window first appears. Only names that identify one game: an exe name two
+    // games in the bottle share, or a generic one, is left out. Written when it changes, never through Wine.
+    func writeDockNames(_ programs: [String]) {
+        let generic: Set<String> = ["game.exe", "launcher.exe", "start.exe", "play.exe", "client.exe", "setup.exe", "main.exe", "app.exe"]
+        var byBottle: [String: [String: Set<String>]] = [:]
+        for p in programs where steamGames[p] != nil {
+            // The process may not be the tile's exe: CD Projekt's launcher starts the game exe from launcher-configuration.json,
+            // and Unreal's Game.exe starts Binaries/Win64/Game-Win64-Shipping.exe.
+            var exes = [p], dir = (p as NSString).deletingLastPathComponent
+            if let red = Model.redGame(dir) { exes.append(red.exe) }
+            if let r = p.range(of: "/steamapps/common/") {
+                let root = String(p[..<r.upperBound]) + (p[r.upperBound...].components(separatedBy: "/").first ?? "")
+                exes += ((try? FileManager.default.contentsOfDirectory(atPath: root + "/Binaries/Win64")) ?? []).filter { $0.lowercased().hasSuffix("-shipping.exe") }
+            }
+            for e in Set(exes.map { ($0 as NSString).lastPathComponent.lowercased() }) where !generic.contains(e) {
+                byBottle[bottleOf(p), default: [:]][e, default: []].insert(appName(p))
+            }
+        }
+        for b in bottles {
+            let lines = (byBottle[b] ?? [:]).compactMap { $0.value.count == 1 ? "\($0.key)\t\($0.value.first!)" : nil }.sorted()
+            let path = "\(bottlesDir)/\(b)/options/dock-names.txt", text = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
+            if ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "") == text { continue }
+            if text.isEmpty { try? FileManager.default.removeItem(atPath: path); continue }
+            try? FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+}
