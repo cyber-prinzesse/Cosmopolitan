@@ -2,13 +2,16 @@ import AppKit
 import SwiftUI
 
 // Native "preparing bottle" stand-in for Wine's old "please wait…" window (off in Cosmos; still under us on Wine 10).
-// Black square, glass only, rounded-square outline with a travelling thick segment (~1.6 s / lap). Shown only in the GUI
-// after ~0.5 s so quick wineboot runs don't flash. VoiceOver: "Preparing <bottle>".
+// Squircle only (corners cut / transparent): glass + white outline with a travelling thick segment (~1.6 s / lap).
+// Shown only in the GUI after ~0.5 s so quick wineboot runs don't flash. VoiceOver: "Preparing <bottle>".
 enum PreparingWindow {
     private static var panel: NSPanel?
     private static var showWork: DispatchWorkItem?
     private static var bottle = ""
     private static var forceShow = false   // --preview-preparing: show even in cliMode
+
+    /// Outer box = icon side + stroke pad so the white line isn't clipped.
+    static let box: CGFloat = PreparingChrome.box
 
     // Call around a wineboot (or preview). Nested begin/end pairs are not supported — one window at a time.
     static func begin(bottle name: String, force: Bool = false) {
@@ -42,8 +45,8 @@ enum PreparingWindow {
 
     private static func present() {
         if panel == nil {
-            let side: CGFloat = 220
-            let root = NSHostingView(rootView: PreparingChrome(bottle: bottle))
+            let side = box
+            let root = ClearHostingView(rootView: PreparingChrome(bottle: bottle))
             root.frame = NSRect(x: 0, y: 0, width: side, height: side)
             let p = NSPanel(contentRect: root.frame, styleMask: [.borderless], backing: .buffered, defer: false)
             p.contentView = root
@@ -63,23 +66,41 @@ enum PreparingWindow {
     }
 }
 
-private struct PreparingChrome: View {
+/// NSHostingView is opaque by default; clear it so clipped corners show the desktop.
+private final class ClearHostingView<Content: View>: NSHostingView<Content> {
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+        wantsLayer = true
+        layer?.backgroundColor = .clear
+        layer?.isOpaque = false
+    }
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+    override var isOpaque: Bool { false }
+}
+
+struct PreparingChrome: View {
     let bottle: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // COSMO_TEST_REDUCE_MOTION=1: preview the pulse path without flipping the Mac's Accessibility setting.
     private var stillOutline: Bool { reduceMotion || ProcessInfo.processInfo.environment["COSMO_TEST_REDUCE_MOTION"] == "1" }
 
     // Icon art is 824×824 with corner radius 160 in the sketch → same ratio on the drawn outline.
-    private let side: CGFloat = 160
+    static let iconSide: CGFloat = 160
+    static let strokePad: CGFloat = 3   // room for the fat snake stroke outside the fill clip edge
+    static var box: CGFloat { iconSide + strokePad * 2 }
+    private var side: CGFloat { Self.iconSide }
     private var radius: CGFloat { side * (160.0 / 824.0) }
+    private var outerRadius: CGFloat { radius + Self.strokePad }
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
         ZStack {
             Cosmo.background
             glass
             outline
         }
-        .frame(width: 220, height: 220)
+        .frame(width: Self.box, height: Self.box)
+        .clipShape(shape)   // cut the sharp black corners — only the squircle (white-line silhouette) remains
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preparing \(bottle)")
     }
@@ -112,7 +133,6 @@ private struct PreparingChrome: View {
                 ZStack {
                     outer.stroke(Cosmo.rule, lineWidth: 1)
                         .frame(width: side, height: side)
-                    // Trim advances along the rounded-rect path itself (snake). Wrap with a second stroke when it crosses 0.
                     snake.trim(from: phase, to: min(1, phase + span))
                         .stroke(Cosmo.textPrimary, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                         .frame(width: side - inset * 2, height: side - inset * 2)
