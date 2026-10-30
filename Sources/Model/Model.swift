@@ -373,7 +373,9 @@ import Network
                 }
                 return out
             }
-            var found1 = exes(2); if found1.isEmpty { found1 = exes(4) }
+            // Depth 2 often only sees REDprelauncher at the install root; dig to 4 when every shallow hit is a helper.
+            var found1 = exes(2)
+            if found1.isEmpty || found1.allSatisfy({ isHelperCandidate("\(dir)/\($0)") }) { found1 = exes(4) }
             // The game's own exe: name matching the game (Magicka2.exe in engine/) beats bigger extras (an interactive map, an editor).
             let norm = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
             let game = norm(val("name")), inst = norm(val("installdir"))
@@ -386,7 +388,10 @@ import Network
                 if ["map", "editor", "tool", "config", "settings", "benchmark", "server", "sdk", "manual", "soundtrack"].contains(where: { n.lowercased().contains($0) }) { s -= 80 }
                 return s
             }
-            guard let exe = found1.max(by: { score($0) < score($1) }) else { continue }
+            // Prefer a non-helper (witcher3 over REDprelauncher) when both are under the installdir.
+            let pick = found1.filter { !isHelperCandidate("\(dir)/\($0)") }.max(by: { score($0) < score($1) })
+                ?? found1.max(by: { score($0) < score($1) })
+            guard let exe = pick else { continue }
             steamGames["\(dir)/\(exe)"] = (id, val("name"))
             found.append("\(dir)/\(exe)")
         }

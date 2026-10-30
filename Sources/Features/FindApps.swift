@@ -41,7 +41,7 @@ extension Model {
         // Exact names (or Microsoft* / DirectX*): not "bin" as a prefix — that would skip Unreal's Binaries/Win64.
         let skipExact: Set<String> = ["windows", "common files", "programdata", "temp", "steamapps", "redist", "_commonredist",
                                       "internet explorer", "windows nt", "windows media player", "windows defender", "wine", "windowsapps",
-                                      "bin", "cache", "cef", "crashpad", "easyanticheat", "battleye"]
+                                      "bin", "cache", "cef", "crashpad", "easyanticheat", "battleye", "bdk", "systeminfo"]
         var best: [String: (String, Int)] = [:]   // folder -> (largest exe, size) — size from attributes only
         guard let en = fm.enumerator(at: URL(fileURLWithPath: root), includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey, .isSymbolicLinkKey],
                                      options: [.skipsHiddenFiles]) else { return 0 }
@@ -51,11 +51,14 @@ extension Model {
             if rv?.isSymbolicLink == true { en.skipDescendants(); continue }
             if rv?.isDirectory == true {
                 let n = u.lastPathComponent.lowercased()
-                if en.level > 5 || skipExact.contains(n) || n.hasPrefix("microsoft") || n.hasPrefix("directx") || n.hasPrefix("vcredist") { en.skipDescendants() }
+                // Battle.net.NNNNN agent trees: skip (helpers only); keep the top Battle.net folder itself.
+                if en.level > 5 || skipExact.contains(n) || n.hasPrefix("microsoft") || n.hasPrefix("directx") || n.hasPrefix("vcredist")
+                    || (n.hasPrefix("battle.net.") && n.dropFirst("battle.net.".count).allSatisfy(\.isNumber)) { en.skipDescendants() }
                 continue
             }
             let n = u.lastPathComponent.lowercased()
-            guard n.hasSuffix(".exe"), !isHelperExe(u.path) else { continue }
+            // isHelperCandidate: also drop reporters when Find apps would otherwise list BlizzardError / FMSIScan / monitors.
+            guard n.hasSuffix(".exe"), !isHelperExe(u.path), !isHelperCandidate(u.path), !isReporterOrMonitorExe(n) else { continue }
             let dir = u.deletingLastPathComponent().path, size = rv?.fileSize ?? 0
             if size > (best[dir]?.1 ?? 0) { best[dir] = (u.path, size) }
         }

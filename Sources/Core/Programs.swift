@@ -29,13 +29,17 @@ func libraryIdentity(_ p: String) -> String {
     if let red = Model.redGame(dir) {
         return "red:" + realPath(red.exe).lowercased()
     }
+    // Battle.net Launcher.exe and Battle.net.exe (and versioned Battle.net.NNNNN children) are one client.
+    let parts = p.components(separatedBy: "/")
+    if let i = parts.firstIndex(where: { $0.lowercased() == "battle.net" }) {
+        return "battlenet:" + realPath(parts[0...i].joined(separator: "/")).lowercased()
+    }
     // Unreal: Game.exe next to Engine/ and Binaries/Win64/*-Shipping.exe share the install root.
     let root = appRoot(p).root
     let engine = root + "/Engine", binaries = root + "/Binaries"
     if FileManager.default.fileExists(atPath: engine) || FileManager.default.fileExists(atPath: binaries) {
         return "ue:" + realPath(root).lowercased()
     }
-    // Also: shipping exe lives under …/Binaries/Win64; appRoot may be the game name folder already.
     let base = (p as NSString).lastPathComponent.lowercased()
     if base.hasSuffix("-win64-shipping.exe") || base.hasSuffix("-shipping.exe") {
         return "ue:" + realPath(root).lowercased()
@@ -43,36 +47,37 @@ func libraryIdentity(_ p: String) -> String {
     return "path:" + realPath(root).lowercased()
 }
 
-// Score which exe to keep for a tile. Size from attributes only (never a full read of a multi‑GB exe). Cache file size+mtime.
+// Score which exe to keep for a tile. Size from attributes only (never a full read of a multi‑GB exe). Cache under the
+// bottle's options/ or the app support folder — never beside the exe (a user-picked drive must not get .cosmo-score-* files).
 func libraryExeScore(_ p: String) -> Int {
     let fm = FileManager.default
     let attrs = try? fm.attributesOfItem(atPath: p)
     let size = attrs?[.size] as? Int ?? 0
     let mtime = Int((attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)
-    let cacheDir = (p as NSString).deletingLastPathComponent
-    // Prefer bottle options cache when under a bottle; else beside the exe is fine for scoring only.
     let bottle = { () -> String? in
         let pre = bottlesDir + "/"
         guard p.hasPrefix(pre), let b = p.dropFirst(pre.count).split(separator: "/").first else { return nil }
         return String(b)
     }()
-    let cache = bottle.map { "\(bottlesDir)/\($0)/options/.score-\((p as NSString).lastPathComponent)" } ?? "\(cacheDir)/.cosmo-score-\((p as NSString).lastPathComponent)"
+    let leaf = (p as NSString).lastPathComponent
+    let cache = bottle.map { "\(bottlesDir)/\($0)/options/.score-\(leaf)" }
+        ?? "\(support)/cache/score-\(leaf.hashValue)-\(leaf)"
     let key = "\(size)|\(mtime)"
     if let c = try? String(contentsOfFile: cache, encoding: .utf8), c.hasPrefix(key + "\n"),
        let s = Int(c.components(separatedBy: "\n").dropFirst().first ?? "") { return s }
 
-    let r = appRoot(p), name = ((p as NSString).lastPathComponent as NSString).deletingPathExtension.lowercased()
+    let r = appRoot(p), baseName = (leaf as NSString).deletingPathExtension.lowercased()
     let norm = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
     let depth = p.components(separatedBy: "/").count - r.root.components(separatedBy: "/").count
     var score = 100 - depth * 15
-    if norm(name) == norm(r.name) { score += 60 }
-    if ["galaxyclient", "battle.net launcher", "steam", "epicgameslauncher", "eadesktop", "ubisoftconnect", "upc"].contains(name) { score += 80 }
-    if name.contains("launcher") && !name.contains("redprelauncher") { score += 25 }
-    if name.contains("redprelauncher") || name == "redlauncher" { score -= 120 }   // CDPR: keep witcher3 / the configured game
-    if name.hasSuffix("-win64-shipping") || name.hasSuffix("-shipping") { score += 90 }   // Unreal: real game beats tiny bootstrap
+    if norm(baseName) == norm(r.name) { score += 60 }
+    if ["galaxyclient", "battle.net launcher", "steam", "epicgameslauncher", "eadesktop", "ubisoftconnect", "upc"].contains(baseName) { score += 80 }
+    if baseName.contains("launcher") && !baseName.contains("redprelauncher") { score += 25 }
+    if baseName.contains("redprelauncher") || baseName == "redlauncher" { score -= 120 }   // CDPR: prefer witcher3 when both are candidates
+    if baseName.hasSuffix("-win64-shipping") || baseName.hasSuffix("-shipping") { score += 90 }
     if ["x86", "x86_64", "x64", "win64", "win32", "bin", "binaries"].contains(((p as NSString).deletingLastPathComponent as NSString).lastPathComponent.lowercased()) { score += 10 }
-    if ["cef", "bdk", "crashpad", "tools", "support", "redist", "_commonredist"].contains(where: { p.lowercased().contains("/\($0)/") }) { score -= 100 }
-    if name.hasPrefix("battle.net") && name != "battle.net launcher" { score -= 30 }
+    if ["cef", "bdk", "crashpad", "tools", "support", "redist", "_commonredist", "systeminfo"].contains(where: { p.lowercased().contains("/\($0)/") }) { score -= 100 }
+    if baseName.hasPrefix("battle.net") && baseName != "battle.net launcher" { score -= 30 }
     if let red = Model.redGame((p as NSString).deletingLastPathComponent), realPath(red.exe) == realPath(p) { score += 100 }
     score += Int(min(size, 50_000_000) / 5_000_000)
     try? FileManager.default.createDirectory(atPath: (cache as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
@@ -80,14 +85,36 @@ func libraryExeScore(_ p: String) -> Int {
     return score
 }
 
-// Helpers that must never become tiles (beyond skipExes substring match).
+// Crash / error reporters, session monitors, system-info scanners — never tiles (Find apps and Program Files scans).
+func isReporterOrMonitorExe(_ n: String) -> Bool {
+    let n = n.lowercased()
+    if ["unitycrashhandler64.exe", "unitycrashhandler32.exe", "unitycrashhandler.exe", "blizzarderror.exe",
+        "gamesessionmonitor.exe", "fmsiscan.exe", "systeminfo.exe"].contains(n) { return true }
+    if n.contains("errorreporter") || n.contains("crashhandler") || n.contains("crashpad") { return true }
+    if n.hasSuffix("error.exe") && (n.contains("blizzard") || n.contains("agent")) { return true }
+    if n.contains("sessionmonitor") || n.contains("gamesession") { return true }
+    if n.hasPrefix("easyanticheat") || n.hasPrefix("eac_") || n.contains("battleye") || n.hasPrefix("beclient") { return true }
+    return false
+}
+
+// Helpers that must never become tiles. Store-backed paths (steamGames / epicGames) are never helpers: Steam often points at
+// REDprelauncher.exe while launcher-configuration.json names witcher3.exe — dropping the Steam entry removed the whole tile.
 func isHelperExe(_ p: String) -> Bool {
+    if steamGames[p] != nil || epicGames[p] != nil { return false }
     let n = (p as NSString).lastPathComponent.lowercased()
     if skipExes.contains(where: { n.contains($0) }) { return true }
-    if ["unitycrashhandler64.exe", "unitycrashhandler32.exe", "unitycrashhandler.exe"].contains(n) { return true }
-    if n.hasPrefix("easyanticheat") || n.hasPrefix("eac_") || n.contains("battleye") || n.hasPrefix("beclient") { return true }
-    // REDprelauncher when the real game exe from launcher-configuration.json is present.
+    if isReporterOrMonitorExe(n) { return true }
+    // REDprelauncher when the real game exe from launcher-configuration.json is present (and this path is not the Steam tile).
     if n == "redprelauncher.exe" || n == "redlauncher.exe", Model.redGame((p as NSString).deletingLastPathComponent) != nil { return true }
+    return false
+}
+
+// True for helper-shaped files even when they are the Steam entry (used when choosing which exe under an installdir to keep).
+func isHelperCandidate(_ p: String) -> Bool {
+    let n = (p as NSString).lastPathComponent.lowercased()
+    if skipExes.contains(where: { n.contains($0) }) { return true }
+    if isReporterOrMonitorExe(n) { return true }
+    if n == "redprelauncher.exe" || n == "redlauncher.exe" { return true }
     return false
 }
 
@@ -122,7 +149,7 @@ func dedupeLibrary(_ found: [String], preferBottle: String, alts: inout [String:
     alts = [:]
     var out: [String] = []
     for key in order {
-        guard var cands = byKey[key], let win = cands.max(by: { $0.score < $1.score }) else { continue }
+        guard let cands = byKey[key], let win = cands.max(by: { $0.score < $1.score }) else { continue }
         out.append(win.path)
         let others = cands.filter { realPath($0.path).lowercased() != realPath(win.path).lowercased() }.map(\.path)
         if !others.isEmpty { alts[win.path] = others }
