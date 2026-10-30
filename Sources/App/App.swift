@@ -17,12 +17,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
         // A path given here may spell a file differently from the scan (/private/tmp vs /tmp: NSHomeDirectory drops /private), and the
         // scan keys Steam games, store games and readiness by its own spelling: --launch and --check map the path onto it by real path.
         switch a[i] {
-        case "--repair": m.repair(); case "--input": m.inputCheck()
-        case "--find":   // every bottle; optional extra folder: --find [bottle] [folder]
-            let folder = (i + 2 < a.count && !a[i + 2].hasPrefix("-") && !FileManager.default.fileExists(atPath: "\(bottlesDir)/\(a[i + 2])/drive_c")) ? a[i + 2]
-                : (i + 3 < a.count ? a[i + 3] : nil)
-            m.findApps(extraFolder: folder)
-        case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
+        case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
         case "--steam-exit-sync":   // Steam was up → now gone via the background watch path (COSMO_TEST_STEAM_EXIT_DELAY; COSMO_TEST_APP_INACTIVE=1 = app not frontmost)
             m.log += "status polling active: \(m.statusPollingActive)\n"
@@ -139,12 +134,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
             }
         }
         case "--check": if i + 2 < a.count { let n = m.launchNeeds(m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
-        case "--status":
-            m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"
-            m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\nbattery summary: \(m.batterySummary())\nbattery profile: \(powerReason() ?? "off")\n"
-            let ids = m.library.map(libraryIdentity), dup = ids.count - Set(ids).count
-            m.log += "library: \(m.library.count) games, \(dup) listed twice\n"
-            for p in m.library { m.log += "  \(appName(p)) [\(m.bottleOf(p))] \(libraryIdentity(p)) \((p as NSString).lastPathComponent)\n" }
+        case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\nbattery summary: \(m.batterySummary())\nbattery profile: \(powerReason() ?? "off")\n"; m.log += "library: \(m.library.count) games, \(m.library.count - Set(m.library).count) listed twice\n"
         default: m.troubleshoot() }
         print(m.log); exit(cliExitCode)
     }
