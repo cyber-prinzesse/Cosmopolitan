@@ -5,14 +5,41 @@
  *                                                                        started by Steam otherwise inherits Steam's name
  * and, for games Steam starts, <prefix>/options/dock-names.txt ("exe<TAB>name" lines Cosmopolitan writes from the library).
  * Loaded by winemac.so (one extra LC_LOAD_DYLIB); replaces -[WineApplicationController transformProcessToForeground:] and
- * calls the original for every program without NoDockIcon. */
+ * calls the original for every program without NoDockIcon.
+ *
+ * Cosmo Dock image: every Wine Dock tile uses cosmo_exeIcon.icns (next to this dylib). Wine's PE→CGImage path often
+ * flattens alpha to an opaque black square; the ICNS keeps transparent corners. Cosmos engines already set this
+ * themselves (engine patch 0031); Cosmopolitan does not install this add-on there. */
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#include <dlfcn.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
 
 static IMP original;
+static IMP set_icon_original;
+
+static NSImage *cosmo_dock_icon(void)
+{
+    static NSImage *icon;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        Dl_info info;
+        if (!dladdr((const void *)cosmo_dock_icon, &info) || !info.dli_fname) return;
+        NSString *dir = [[NSString stringWithUTF8String:info.dli_fname] stringByDeletingLastPathComponent];
+        NSString *path = [dir stringByAppendingPathComponent:@"cosmo_exeIcon.icns"];
+        icon = [[NSImage alloc] initWithContentsOfFile:path];
+    });
+    return icon.valid ? icon : nil;
+}
+
+/* Force Cosmo art whenever Wine (or anyone) sets the app icon — keeps corner alpha. */
+static void set_application_icon_image(id self, SEL _cmd, NSImage *image)
+{
+    NSImage *cosmo = cosmo_dock_icon();
+    ((void (*)(id, SEL, NSImage *))set_icon_original)(self, _cmd, cosmo ?: image);
+}
 
 /* The Windows program name: Wine rewrites the process arguments to the Windows command line ("C:\...\steam.exe -args"). */
 static NSString *windows_exe_name(void)
@@ -122,7 +149,14 @@ static void transform(id self, SEL _cmd, BOOL activateIfTransformed)
     {
         ((void (*)(id, SEL, BOOL))original)(self, _cmd, activateIfTransformed);
         static BOOL named;
-        if (!named && [NSApp activationPolicy] == NSApplicationActivationPolicyRegular) { named = YES; set_app_name(); }
+        if (!named && [NSApp activationPolicy] == NSApplicationActivationPolicyRegular)
+        {
+            named = YES;
+            set_app_name();
+            /* Assert Cosmo icon after Wine's own set_app_icon may have run. */
+            NSImage *cosmo = cosmo_dock_icon();
+            if (cosmo) [NSApp setApplicationIconImage:cosmo];
+        }
         return;
     }
     if ([NSApp activationPolicy] == NSApplicationActivationPolicyProhibited)
@@ -136,4 +170,7 @@ __attribute__((constructor)) static void install(void)
     Class c = objc_getClass("WineApplicationController");
     Method m = c ? class_getInstanceMethod(c, @selector(transformProcessToForeground:)) : NULL;
     if (m) original = method_setImplementation(m, (IMP)transform);
+
+    Method sm = class_getInstanceMethod(objc_getClass("NSApplication"), @selector(setApplicationIconImage:));
+    if (sm) set_icon_original = method_setImplementation(sm, (IMP)set_application_icon_image);
 }

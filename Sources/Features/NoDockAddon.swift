@@ -1,10 +1,12 @@
 import Foundation
 
-// One Dock icon for Steam: steam.exe has no window of its own, but Wine makes every program that ever shows a window a regular
-// Dock app, so Steam sat in the Dock twice. Bottles mark such programs with Mac Driver › NoDockIcon (see healSteamDockIcon); the
-// engine's Mac driver honours it through cosmo_nodock.dylib (EngineAddon/), loaded by one extra LC_LOAD_DYLIB in winemac.so.
+// Dock add-on for Wine 10 engines: (1) NoDockIcon — steam.exe has no window of its own, but Wine makes every program that ever
+// shows a window a regular Dock app, so Steam sat in the Dock twice; bottles mark such programs with Mac Driver › NoDockIcon
+// (see healSteamDockIcon). (2) Cosmos icon — every remaining Dock tile uses cosmo_exeIcon.icns (Wine's PE→image path flattens
+// alpha). Honour both through cosmo_nodock.dylib (EngineAddon/), loaded by one extra LC_LOAD_DYLIB in winemac.so.
 // The driver itself can't be rebuilt: Sikarugir's has a macdrv_functions table that D3DMetal/DXMT call and no public source. Done once per
 // engine; files are swapped in by rename, so running programs keep what they mapped. The original stays as winemac.so.orig-before-nodock.
+// Cosmos engines already brand Dock tiles themselves (patch 0031); Cosmopolitan does not install this add-on there.
 extension Model {
     nonisolated static let noDockAddon = "cosmo_nodock.dylib"
 
@@ -45,12 +47,19 @@ extension Model {
     }
 
     // Puts the add-on into `engine` (…/wswine.bundle) and makes its winemac.so load it. Returns a log line ("" when nothing to do).
+    // Also installs cosmo_exeIcon.icns next to the dylib so every Wine Dock tile gets the Cosmos icon (Wine 10; Cosmos engines skip this add-on).
     @discardableResult nonisolated static func installNoDockAddon(_ engine: String, addon: String = (Bundle.main.resourcePath ?? "") + "/cosmo_nodock.dylib") -> String {
         let fm = FileManager.default, unix = engine + "/lib/wine/x86_64-unix", mac = unix + "/winemac.so", dst = unix + "/" + noDockAddon
         guard fm.fileExists(atPath: addon), let orig = fm.contents(atPath: mac) else { return "" }
         if !fm.contentsEqual(atPath: addon, andPath: dst) {
             let t = dst + ".new"; try? fm.removeItem(atPath: t)
             guard (try? fm.copyItem(atPath: addon, toPath: t)) != nil, rename(t, dst) == 0 else { return "✗ One Dock icon for Steam: couldn't copy \(noDockAddon) into the engine\n" }
+        }
+        // Cosmo branding for every Dock tile: ICNS beside the dylib (setApplicationIconImage in cosmo_nodock.m).
+        let iconName = "cosmo_exeIcon.icns", iconSrc = (addon as NSString).deletingLastPathComponent + "/" + iconName, iconDst = unix + "/" + iconName
+        if fm.fileExists(atPath: iconSrc), !fm.contentsEqual(atPath: iconSrc, andPath: iconDst) {
+            let t = iconDst + ".new"; try? fm.removeItem(atPath: t)
+            guard (try? fm.copyItem(atPath: iconSrc, toPath: t)) != nil, rename(t, iconDst) == 0 else { return "✗ One Dock icon for Steam: couldn't copy \(iconName) into the engine\n" }
         }
         let ref = "@loader_path/" + noDockAddon
         if machoLoads(orig, ref) { return "" }
