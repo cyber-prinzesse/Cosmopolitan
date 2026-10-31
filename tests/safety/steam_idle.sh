@@ -1,15 +1,15 @@
 #!/bin/zsh
 # Steam idle diet: when Steam's window is hidden or a game is running, Cosmopolitan puts this bottle's steamwebhelper
-# processes into Darwin background QoS; restores when shown / game exits; STEAM_IDLE_DIET=0 opts out; never touches
+# processes on throughput/latency tier 4; restores when shown / game exits; STEAM_IDLE_DIET=0 opts out; never touches
 # another bottle's helpers or a process outside the throwaway folder.
 # Stand-ins are native binaries under the bottle path (procFind matches exec path + cwd). COSMO_TEST_STEAM_RUNNING=1
 # pretends Steam is up; COSMO_TEST_STEAM_VISIBLE drives the window check. No Wine session required.
-# Note: getpriority(PRIO_DARWIN_PROCESS) returns 0 even when Darwin BG is on (macOS 26); assert via Cosmo's
-# throttled= line and, once, via CPU share under oversubscription.
+# Asserts via Cosmo's throttled= line, nice untouched, and CPU share under contention (a throttled helper must not starve).
 source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(testenv_trap_cleanup)"
 fail() { print "FAIL: $*"; exit 1; }
 note() { print -r -- "$*" >&2; }
 tw_snapshot
+setopt no_bgnice   # zsh would start the stand-ins at nice 5
 
 clang -O0 -o "$T/native_busy" -xc - <<'C' || fail "build native busy"
 #include <stdint.h>
@@ -101,25 +101,25 @@ th=$(throttled_of "$out")
 [[ -z "$th" ]] || fail "opt-out still throttled: $out"
 print -r -- "ok: STEAM_IDLE_DIET=0 → no throttle"
 
-# Contention: re-enable diet, oversubscribe CPUs, T (BG) should get ~0% while U stays busy.
+# Re-enable diet: T throttled, U and the foreign helper untouched; nice never changed (it cannot be undone without root).
 rm -f "$(tprefix T)/options/steam.exe.env"
 out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
 th=$(throttled_of "$out")
-[[ "$th" == *"$TP1"* ]] || fail "re-throttle failed: $out"
-ncpu=$(sysctl -n hw.ncpu)
-for ((i=0; i<ncpu*2; i++)); do "$T/native_busy" & done
-sleep 4
-tcpu=$(ps -o pcpu= -p $TP1 | tr -d ' ')
-ucpu=$(ps -o pcpu= -p $UP1 | tr -d ' ')
-# Kill extras (exact pids we started: children of this shell with our binary path).
-ps -axo pid=,command= | awk -v b="$T/native_busy" '$0 ~ b {print $1}' | while read p; do
-  [[ $p == $TP1 || $p == $UP1 || $p == $FOREIGN ]] && continue
-  kill -KILL $p 2>/dev/null
-done
-# T should be far below U under oversubscription (Darwin BG).
-awk -v t="$tcpu" -v u="$ucpu" 'BEGIN{ exit !(t+0 < 5 && u+0 > 10) }' \
-  || fail "contention CPU: T(bg)=$tcpu U=$ucpu (expected T≪U)"
-print -r -- "ok: contention T(bg)=${tcpu}% U=${ucpu}%"
+[[ "$th" == *"$TP1"* && "$th" != *"$UP1"* && "$th" != *"$FOREIGN"* ]] || fail "re-throttle wrong: $out"
+niceof() { ps -o nice= -p $1 | tr -d ' '; }
+for p in $TP1 $UP1 $FOREIGN; do [[ "$(niceof $p)" == 0 ]] || fail "pid $p nice=$(niceof $p), expected 0"; done
+# Contention: oversubscribe CPUs; the throttled T must still get a real share (Darwin BG gave it ~0%).
+ncpu=$(sysctl -n hw.ncpu); extra=()
+for ((i=0; i<ncpu*2; i++)); do "$T/native_busy" & extra+=$!; done
+sleep 5
+tcpu=$(ps -o pcpu= -p $TP1 | tr -d ' '); ucpu=$(ps -o pcpu= -p $UP1 | tr -d ' ')
+kill -KILL $extra 2>/dev/null
+awk -v t="$tcpu" -v u="$ucpu" 'BEGIN{ exit !(t+0 > u*0.5 && t+0 > 10) }' \
+  || fail "throttled helper starved under load: T=$tcpu% U=$ucpu%"
+print -r -- "ok: throttled T not starved under load (T=${tcpu}% U=${ucpu}%), nice untouched"
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
+[[ -z "$(throttled_of "$out")" ]] || fail "not restored when shown: $out"
+print -r -- "ok: restored when shown"
 
 kill -KILL $FOREIGN $TP1 $UP1 2>/dev/null
 tw_check || fail "your real data changed"
