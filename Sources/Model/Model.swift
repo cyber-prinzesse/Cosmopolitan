@@ -68,7 +68,7 @@ import Network
     var steamRestartEpoch: [String: Int] = [:]          // bumped on user quit so an in-flight restartSteam does not launch Steam again
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
-    var steamIdleDietApplied: [String: Set<Int32>] = [:]   // bottle → webhelper pids currently in Darwin BG (Steam idle diet)
+    var steamIdleDietApplied: [String: Set<Int32>] = [:]   // bottle → webhelper pids currently on tier 4 (Steam idle diet)
     var steamIdleDietLogged: Set<String> = []              // once-per-state log keys ("bottle:on" / "bottle:off")
     var macSteamWarned = false                             // one-time warning when Mac Steam.app runs beside a bottle Steam
     @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)

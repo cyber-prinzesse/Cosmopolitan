@@ -3,7 +3,7 @@ import Foundation
 
 extension Model {
     // Steam's CEF UI (software-composited under Wine) burns CPU while the window is up. When Steam is hidden or a game is
-    // running, move this bottle's steamwebhelper processes into Darwin background QoS (PRIO_DARWIN_BG); restore when the
+    // running, put this bottle's steamwebhelper processes on throughput/latency tier 4 (fewer timer wakeups); restore when the
     // window is shown again and no game is running. Opt out with STEAM_IDLE_DIET=0 on steam.exe's options or the bottle's
     // cosmopolitan.env. Never touches another bottle or Mac Steam.app.
     nonisolated static func steamExePath(_ bottle: String) -> String {
@@ -54,7 +54,7 @@ extension Model {
         return !steamWindowVisible(in: bottle)
     }
 
-    // Apply or clear Darwin BG on this bottle's webhelper pids only. Returns the pids now in BG.
+    // Apply or clear tier 4 on this bottle's webhelper pids only. Returns the pids now lowered.
     @discardableResult
     func steamIdleDietTick(bottle: String? = nil, forceLog: Bool = false) -> [Int32] {
         warnMacSteamIfNeeded()
@@ -74,7 +74,7 @@ extension Model {
         applied = applied.intersection(live)
 
         if !want {
-            for pid in applied { Model.setDarwinBackground(pid, enabled: false) }
+            for pid in applied { Model.setLowPriority(pid, enabled: false) }
             if !applied.isEmpty {
                 let m = "Steam idle diet: restored normal priority for \(bottle) (\(applied.count) webhelper process\(applied.count == 1 ? "" : "es")).\n"
                 log += m; if forceLog || steamIdleDietLogged.contains(bottle + ":off") == false { logToFile(m); steamIdleDietLogged.insert(bottle + ":off") }
@@ -84,33 +84,53 @@ extension Model {
         }
 
         guard steamIdleDietEnabled(in: bottle) else {
-            for pid in applied { Model.setDarwinBackground(pid, enabled: false) }
+            for pid in applied { Model.setLowPriority(pid, enabled: false) }
             steamIdleDietApplied[bottle] = []
             return []
         }
 
-        // Only spawn taskpolicy for pids not already tracked (Steam respawns helpers). Do not re-assert every 5 s —
-        // each call launches /usr/sbin/taskpolicy (a full process), not a cheap syscall.
-        let toAdd = live.subtracting(applied)
-        for pid in toAdd { Model.setDarwinBackground(pid, enabled: true) }
+        // Only lower pids not already tracked (Steam respawns helpers).
+        // Skip helpers still starting: before the window exists Steam counts as "hidden", and Darwin BG (CPU + disk I/O throttle)
+        // on a booting webhelper stretched a cold start to 105 s / 17 min until Steam's watchdog said "steamwebhelper is not
+        // responding" (2026-10-31). Young pids are picked up by a later 5 s tick.
+        let toAdd = live.subtracting(applied).filter { Model.processAge($0) >= Model.steamIdleDietMinAge }
+        for pid in toAdd { Model.setLowPriority(pid, enabled: true) }
         applied = applied.union(toAdd).intersection(live)
         steamIdleDietApplied[bottle] = applied
         if !applied.isEmpty, forceLog || !steamIdleDietLogged.contains(bottle + ":on") {
             let why = Model.steamBusy(bottle) == "a game is running" ? "a game is running" : "Steam's window is hidden"
-            let m = "Steam idle diet: background QoS for \(bottle)'s webhelper (\(applied.count) process\(applied.count == 1 ? "" : "es"); \(why)). STEAM_IDLE_DIET=0 opts out.\n"
+            let m = "Steam idle diet: lower priority for \(bottle)'s webhelper (\(applied.count) process\(applied.count == 1 ? "" : "es"); \(why)). STEAM_IDLE_DIET=0 opts out.\n"
             log += m; logToFile(m); steamIdleDietLogged.insert(bottle + ":on")
         }
         return Array(applied).sorted()
     }
 
-    // taskpolicy -b/-B (not setpriority alone): on macOS 26, setpriority(PRIO_DARWIN_PROCESS, pid, 1) succeeds
-    // but does not move the target into Darwin BG; /usr/sbin/taskpolicy -b -p does (measured under CPU oversubscription).
-    // Call only on throttle on/off or a newly seen pid — each invocation launches a process.
-    nonisolated static func setDarwinBackground(_ pid: Int32, enabled: Bool) {
+    // ponytail: fixed 120 s grace; tie it to "Steam's window seen once" if a slow Mac still trips the watchdog.
+    // Test builds: COSMO_TEST_DIET_MIN_AGE overrides (stand-ins are fresh).
+    nonisolated static var steamIdleDietMinAge: TimeInterval {
+        if isTestBuild, let v = ProcessInfo.processInfo.environment["COSMO_TEST_DIET_MIN_AGE"], let s = TimeInterval(v) { return s }
+        return 120
+    }
+
+    // Seconds since pid started; 0 when unknown (treated as young, so never throttled by mistake).
+    nonisolated static func processAge(_ pid: Int32) -> TimeInterval {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return 0 }
+        return Date().timeIntervalSince1970 - (TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+
+    // Throughput/latency tier 4 (taskpolicy -t 4 -l 4), undone with tier 0. Not Darwin BG (-b): BG starved the helper under
+    // load (0.6% CPU vs 45%) and throttled its disk I/O, so it missed Steam's watchdog — "steamwebhelper is not responding",
+    // window popped back every time it was closed (2026-10-31). Not nice 10 either: macOS refuses to lower nice again
+    // without root (EACCES), so the helper could never be restored. Tiers coalesce timers without starving it.
+    // Spawns /usr/sbin/taskpolicy: call only on a state change or a newly seen pid.
+    nonisolated static func setLowPriority(_ pid: Int32, enabled: Bool) {
         guard pid > 1 else { return }
+        let t = enabled ? "4" : "0"
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/sbin/taskpolicy")
-        p.arguments = [enabled ? "-b" : "-B", "-p", String(pid)]
+        p.arguments = ["-t", t, "-l", t, "-p", String(pid)]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try? p.run(); p.waitUntilExit()
