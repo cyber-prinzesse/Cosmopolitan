@@ -1,0 +1,43 @@
+# Does the app start on the oldest macOS it declares? Builds with the newest Xcode on the runner, then on macOS 15:
+# checks the minimum OS and weak links, runs two CLI commands and opens the window for 20 s (screenshot kept as an artifact).
+name: macOS 15 smoke test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  smoke:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Newest Xcode
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$X" ] || { echo "no Xcode 26 on this runner"; ls /Applications | grep Xcode; exit 1; }
+          sudo xcode-select -s "$X"; xcodebuild -version; sw_vers
+      - name: Build
+        run: scripts/build.sh
+      - name: Binary checks
+        run: |
+          B=build.noindex/Cosmopolitan.app/Contents/MacOS/Cosmopolitan
+          vtool -show-build "$B" | grep 'minos 15.0'
+          otool -L "$B"
+          otool -l "$B" | grep -A2 LC_LOAD_WEAK_DYLIB | grep FoundationModels
+      - name: CLI on macOS 15
+        run: |
+          B=build.noindex/Cosmopolitan.app/Contents/MacOS/Cosmopolitan
+          "$B" --health 2>&1 | tail -20; echo "health exit $?"
+          "$B" --status 2>&1 | tail -20; echo "status exit $?"
+      - name: Window on macOS 15
+        run: |
+          open build.noindex/Cosmopolitan.app; sleep 20
+          pid=$(pgrep -x Cosmopolitan) || { echo "app is not running"; log show --last 2m --predicate 'process == "Cosmopolitan"' | tail -40; exit 1; }
+          echo "running: $pid"; screencapture -x window.png || true
+          ls ~/Library/Logs/DiagnosticReports | grep -i cosmo && exit 1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos15-smoke
+          path: window.png
+          if-no-files-found: ignore

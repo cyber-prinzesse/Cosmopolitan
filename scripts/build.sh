@@ -6,8 +6,8 @@ rm -rf build.noindex/Cosmopolitan.app; mkdir -p build.noindex/Cosmopolitan.app/C
 # Sparkle (MIT) for auto-updates: framework embedded, EdDSA public key in Info.plist, feed URL set in release.sh's appcast.
 cp -R Sparkle/Sparkle.framework build.noindex/Cosmopolitan.app/Contents/Frameworks/
 # Native C++ module (Sources/Native): compiled once per build, linked into the Swift binary through the bridging header.
-# Oldest macOS the app runs on (matches Package.swift). Without it the compiler targets the build Mac's own OS, so a build on macOS 27 refused to open on 26 (Tahoe).
-MIN=26.0; export MACOSX_DEPLOYMENT_TARGET=$MIN
+# Oldest macOS the app runs on (matches Package.swift): 15 Sequoia. macOS 26 features (Liquid Glass, on-device crash explainer) sit behind #available; FoundationModels is weak-linked. Without it the compiler targets the build Mac's own OS, so a build on macOS 27 refused to open on 26 (Tahoe).
+MIN=15.0; export MACOSX_DEPLOYMENT_TARGET=$MIN
 mkdir -p build; echo '["AppIntent","EntityQuery","EntityStringQuery","AppEntity","TransientEntity","AppEnum","AppShortcutProviding","AppShortcutsProvider","AnyResolverProviding","AppIntentsPackage","DynamicOptionsProvider"]' > build/appintents-protocols.json
 for c in Sources/Native/*.cpp; do clang++ -mmacosx-version-min=$MIN -std=c++17 -O2 -Wall -Wextra -Werror -c "$c" -o "build/$(basename "${c%.cpp}").o"; done
 # -g keeps debug info; dsymutil moves it into a separate Cosmopolitan.app.dSYM (shipped next to releases, never inside the app).

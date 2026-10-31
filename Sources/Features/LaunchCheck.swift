@@ -108,7 +108,11 @@ extension Model {
                 let r = Model.runtimesFor(verb: v); if r.isEmpty { if !verbs.contains(v) { verbs.append(v) } } else { runtimes.formUnion(r) }   // pinned Microsoft runtimes instead of winetricks
             }
             n.overrides = c.overrides; n.env = c.env; n.args = c.args
-            if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { parts.append("applying community fixes" + (c.overrides.isEmpty ? "" : " (overrides: " + c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ") + ")") + (c.args.isEmpty ? "" : " args " + c.args.joined(separator: " "))) }
+            if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { 
+                let ov: String = c.overrides.isEmpty ? "" : " (overrides: \(c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ")))"
+                let ar: String = c.args.isEmpty ? "" : " args \(c.args.joined(separator: " "))"
+                parts.append("applying community fixes\(ov)\(ar)")
+            }
             if !c.launchArgs.isEmpty { n.args += c.launchArgs.split(separator: " ").map(String.init) }
         }
         if let v = antiCheatVerdict(acNames, appid: steamGames[exe]?.id, name: steamGames[exe]?.name ?? appName(exe)) { n.anticheat = v; parts.append(v.1) }
