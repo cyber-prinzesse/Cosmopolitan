@@ -108,15 +108,21 @@ th=$(throttled_of "$out")
 [[ "$th" == *"$TP1"* && "$th" != *"$UP1"* && "$th" != *"$FOREIGN"* ]] || fail "re-throttle wrong: $out"
 niceof() { ps -o nice= -p $1 | tr -d ' '; }
 for p in $TP1 $UP1 $FOREIGN; do [[ "$(niceof $p)" == 0 ]] || fail "pid $p nice=$(niceof $p), expected 0"; done
-# Contention: oversubscribe CPUs; the throttled T must still get a real share (Darwin BG gave it ~0%).
-ncpu=$(sysctl -n hw.ncpu); extra=()
-for ((i=0; i<ncpu*2; i++)); do "$T/native_busy" & extra+=$!; done
-sleep 5
-tcpu=$(ps -o pcpu= -p $TP1 | tr -d ' '); ucpu=$(ps -o pcpu= -p $UP1 | tr -d ' ')
-kill -KILL $extra 2>/dev/null
-awk -v t="$tcpu" -v u="$ucpu" 'BEGIN{ exit !(t+0 > u*0.5 && t+0 > 10) }' \
-  || fail "throttled helper starved under load: T=$tcpu% U=$ucpu%"
-print -r -- "ok: throttled T not starved under load (T=${tcpu}% U=${ucpu}%), nice untouched"
+# Contention leg only with COSMO_TEST_HEAVY=1: it saturates every core for 5 s, too much for a Mac someone is using
+# (2026-10-31 the user's login broke after a day of heavy tests: cfprefsd kept aborting in _pthread_set_properties_self).
+if [[ "$COSMO_TEST_HEAVY" == 1 ]]; then
+  # Throttled T must still get a real share under load (Darwin BG gave it ~0%).
+  ncpu=$(sysctl -n hw.ncpu); extra=()
+  for ((i=0; i<ncpu*2; i++)); do "$T/native_busy" & extra+=$!; done
+  sleep 5
+  tcpu=$(ps -o pcpu= -p $TP1 | tr -d ' '); ucpu=$(ps -o pcpu= -p $UP1 | tr -d ' ')
+  kill -KILL $extra 2>/dev/null
+  awk -v t="$tcpu" -v u="$ucpu" 'BEGIN{ exit !(t+0 > u*0.5 && t+0 > 10) }' \
+    || fail "throttled helper starved under load: T=$tcpu% U=$ucpu%"
+  print -r -- "ok: throttled T not starved under load (T=${tcpu}% U=${ucpu}%), nice untouched"
+else
+  print -r -- "skip: contention leg (COSMO_TEST_HEAVY=1 runs it)"
+fi
 out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=1 ct --steam-idle T 2>&1)
 [[ -z "$(throttled_of "$out")" ]] || fail "not restored when shown: $out"
 print -r -- "ok: restored when shown"
