@@ -31,10 +31,10 @@ L="$(tprefix Q)/options/.registry-ledger.json"
 # Wine may store the em dash as \x2014 in user.reg; accept either form.
 appname_ok() {
   local ureg="$(tprefix Q)/user.reg"
-  rg -q 'AppDefaults\\\\fakew\.exe\\\\Mac Driver' "$ureg" 2>/dev/null || return 1
-  rg -q --fixed-strings "\"AppName\"=\"${want}\"" "$ureg" 2>/dev/null \
-    || rg -q 'AppName"="Fake Witcher: Wild \\x2014 Hunt"' "$ureg" 2>/dev/null \
-    || rg -q 'AppName"="Fake Witcher: Wild \x2014 Hunt"' "$ureg" 2>/dev/null
+  grep -qE 'AppDefaults\\\\fakew\.exe\\\\Mac Driver' "$ureg" 2>/dev/null || return 1
+  grep -qF "\"AppName\"=\"${want}\"" "$ureg" 2>/dev/null \
+    || grep -qE 'AppName"="Fake Witcher: Wild \\x2014 Hunt"' "$ureg" 2>/dev/null \
+    || grep -qE 'AppName"="Fake Witcher: Wild \x2014 Hunt"' "$ureg" 2>/dev/null
 }
 ledger_ok() {
   [[ -f "$L" ]] || return 1
@@ -47,16 +47,16 @@ sys.exit(0 if ok else 1)
 ' "$want" "$L"
 }
 poll 30 ledger_ok || fail "ledger missing dock-name AppName for fakew.exe after scan (options=$(ls "$(tprefix Q)/options" 2>&1); dock-names=$(cat "$(tprefix Q)/options/dock-names.txt" 2>&1); ledger=$(cat "$L" 2>&1))"
-appname_ok || fail "user.reg lacks AppName for fakew.exe (snippet: $(rg -n 'fakew|AppName' "$(tprefix Q)/user.reg" 2>&1 | head -30))"
+appname_ok || fail "user.reg lacks AppName for fakew.exe (snippet: $(grep -nE 'fakew|AppName' "$(tprefix Q)/user.reg" 2>&1 | head -30))"
 print "ok: scan wrote Mac Driver AppName for fakew.exe; ledger owner=dock-name"
 
 # Second scan must change nothing (same want → syncDockAppNames returns without rewriting).
 before=$(shasum "$L" | awk '{print $1}')
-before_reg=$(rg -n 'AppDefaults\\\\fakew\.exe\\\\Mac Driver' -A5 "$(tprefix Q)/user.reg" 2>/dev/null || true)
+before_reg=$(grep -nE 'AppDefaults\\\\fakew\.exe\\\\Mac Driver' -A5 "$(tprefix Q)/user.reg" 2>/dev/null || true)
 ct --status Q >/dev/null 2>&1
 twineserver Q -w 2>/dev/null
 after=$(shasum "$L" | awk '{print $1}')
-after_reg=$(rg -n 'AppDefaults\\\\fakew\.exe\\\\Mac Driver' -A5 "$(tprefix Q)/user.reg" 2>/dev/null || true)
+after_reg=$(grep -nE 'AppDefaults\\\\fakew\.exe\\\\Mac Driver' -A5 "$(tprefix Q)/user.reg" 2>/dev/null || true)
 [[ "$before" == "$after" ]] || fail "second scan changed the ledger ($before → $after)"
 [[ "$before_reg" == "$after_reg" ]] || fail "second scan changed AppName registry value"
 print "ok: second scan left AppName and ledger unchanged"
