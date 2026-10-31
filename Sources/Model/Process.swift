@@ -63,6 +63,8 @@ extension Model {
             e["WINELOADER"] = loader
             if let exe { e["COSMO_LOADER_NAME"] = Model.loaderProcessName(for: exe) }
         }
+        // Cosmos: the first program's Dock name. Its children get their own from the registry (syncDockAppNames), never this one.
+        if let exe, engineHasDockPatches() { e["WINEMACAPPNAME"] = Model.loaderProcessName(for: exe) }
         exec(loader, args, env: e, block: block, exe: exe, then: then)
     }
 }

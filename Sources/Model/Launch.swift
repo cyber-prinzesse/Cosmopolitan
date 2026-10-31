@@ -144,6 +144,7 @@ extension Model {
     }
     // Path Cosmo exec's: the dispatcher. Also ensures a wine copy for the host fallback name exists (children / no dock-names row).
     func loaderNamed(_ exe: String) -> String {
+        if engineHasDockPatches() { return wineBin }   // Cosmos names the Dock link itself (WINEMACAPPNAME, set in wine())
         _ = Model.installWineloaderDispatcher(engineDir)
         let ascii = Model.loaderProcessName(for: exe)
         let name = ascii.replacingOccurrences(of: " ", with: "\u{00A0}")
@@ -229,8 +230,10 @@ extension Model {
         // Drop a leftover driver-fallback pin on steam.exe before prepare reads Options: games inherit Steam's env, so DXVK there breaks DX12.
         // Wine's tray hidden (templates set it): Steam's window close has nowhere to minimize to, so the window keeps coming back.
         if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe); Model.healSteamSystray(bottleOf(exe)); Model.healSteamDockIcon(bottleOf(exe)) }
-        log += Model.installNoDockAddon(engineDir)   // engine add-on current before any program starts (Dock icon)
-        log += Model.installWineloaderDispatcher(engineDir)   // Dock label = loader file name (cosmo_wineloader)
+        if !engineHasDockPatches() {   // Cosmos does both itself
+            log += Model.installNoDockAddon(engineDir)   // engine add-on current before any program starts (Dock icon)
+            log += Model.installWineloaderDispatcher(engineDir)   // Dock label = loader file name (cosmo_wineloader)
+        }
         var need = prepare(exe)
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
         launchedDrivers[exe] = need.drivers ?? driverList(launchEnvRaw(bottleOf(exe)), bottle: bottleOf(exe))
