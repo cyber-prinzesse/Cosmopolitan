@@ -14,7 +14,10 @@ print 'int main(void) { return 0; }' > "$T/s.c"
 i686-w64-mingw32-gcc -O2 -s "$T/s.c" -o "$UD/UbisoftConnect.exe" || fail "could not build the stand-in stub"
 cp "$UD/UbisoftConnect.exe" "$UD/upc.exe"
 
+# Wine 10 leg: a stand-in folder with Wine 10's layout, so it runs whatever engine is under test (the check reads the layout only).
+testenv_fake_wine10; defaults write "$TESTID" engine fake10
 c=$(ct --check U "$UD/UbisoftConnect.exe" 2>&1)
+defaults write "$TESTID" engine "$ENGINE"
 [[ "$c" == *"stays blank on Wine 10"* && "$c" == *"light: red"* ]] || fail "Wine 10: Ubisoft Connect should be red with the reason: $c"
 print -r -- "ok: on Wine 10 the launch check is red: Ubisoft Connect's window stays blank"
 defaults write "$TESTID" engine fake11

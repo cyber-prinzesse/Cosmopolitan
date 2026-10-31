@@ -20,6 +20,16 @@ REAL_SUPPORT="$REAL_HOME/Library/Application Support/Cosmopolitan"
 REAL_LOG="$REAL_HOME/Library/Logs/Cosmopolitan.log"
 ENGINE="${COSMO_ENGINE:-WS12WineSikarugir10.0_8}"   # COSMO_ENGINE_DIR: a trial engine folder outside your app data (copied in as $ENGINE)
 
+# The engine under test, judged the way the app judges it (LaunchEnvironment.swift): Wine 11 by layout (lib/wine/x86_64-unix/wine),
+# Cosmos Dock patches by COSMOS-BUILD.txt listing 0029 and 0030. Never by name. Call after testenv_init.
+testenv_engine_is_wine11() { [[ -f "$TS/engines/$ENGINE/wswine.bundle/lib/wine/x86_64-unix/wine" ]]; }
+testenv_engine_has_dock_patches() {
+  local f="$TS/engines/$ENGINE/COSMOS-BUILD.txt"
+  [[ -f "$f" ]] && grep -q 0029-ntdll-dock-name-from-appname "$f" && grep -q 0030-winemac-no-dock-icon-option "$f"
+}
+# A stand-in engine folder with Wine 10's layout (no x86_64-unix/wine), so a test's Wine 10 leg runs whatever engine is under test.
+testenv_fake_wine10() { mkdir -p "$TS/engines/fake10/wswine.bundle/lib/wine/x86_64-windows"; }
+
 testenv_init() {
   emulate -L zsh
   T="$(mktemp -d /private/tmp/cosmotest.XXXXXX)" || return 1

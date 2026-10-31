@@ -4,6 +4,9 @@
 # Throwaway engine copy and bottle only (testenv.sh).
 source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
 fail() { print "FAIL: $*"; exit 1; }
+# The Wine 10 Dock add-on path (cosmo_wineloader / cosmo_nodock). The app skips it for an engine whose COSMOS-BUILD.txt lists the Dock
+# patches 0029/0030 (engineHasDockPatches), so this test does too; dock_label_child covers that engine's own Dock naming.
+testenv_engine_has_dock_patches && { print -r -- "skip ${0:t:r}: $ENGINE has the Dock patches (0029/0030), the app installs no add-on into it"; print "PASS ${0:t:r}"; exit 0; }
 tw_snapshot
 E="$TS/engines/$ENGINE/wswine.bundle"; U="$E/lib/wine/x86_64-unix"
 # Start from the engine's own driver (the real engine may already carry the add-on).
