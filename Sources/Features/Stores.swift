@@ -130,7 +130,8 @@ extension Model {
         Model.regDelete(selected, "HKCU\\Software\\Wine\\Systray", "Hidden")   // template often sets Hidden=1 — Steam then can't minimize
         reg("HKCU\\Software\\Wine\\X11 Driver", "ShowSystray", "REG_SZ", "true")   // leftover X11 key from some templates; harmless on Mac
         reg(Model.steamNoDockKey, "NoDockIcon", "REG_SZ", "y")
-        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI, system tray on, one Dock icon).\n"
+        reg(Model.steamQuitKey, "QuitRuns", "REG_SZ", Model.steamQuitCommand)   // Mac Quit on the Dock icon quits all of Steam
+        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI, system tray on, one Dock icon, Mac Quit quits Steam).\n"
     }
     // Battle.net.config: hardware acceleration and streaming off (CEF under Wine renders black otherwise). Merged, never clobbered.
     func battlenetConfig() {

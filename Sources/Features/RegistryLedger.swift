@@ -20,7 +20,21 @@ extension Model {
     }
     // Writes a value and records it.
     nonisolated static func regSet(_ bottle: String, _ key: String, _ name: String, _ value: String, type: String = "REG_SZ", exe: String, owner: String) {
-        _ = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg add \(shq(key)) /v \(shq(name)) /t \(type) /d \(shq(value)) /f >/dev/null 2>&1")
+        if type == "REG_SZ", value.lowercased().contains(".exe") {
+            // Through a .reg file: on reg.exe's command line a value like "…\\Steam\\steam.exe -shutdown" makes that reg process
+            // look like a running Steam to every command-line process match (ours and the tests') while it runs.
+            let name8 = "cosmo-reg-\(UUID().uuidString).reg", dir = "\(bottlesDir)/\(bottle)/drive_c/windows/temp"
+            func esc(_ s: String) -> String { s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") }
+            let root = key.hasPrefix("HKCU\\") ? "HKEY_CURRENT_USER" + key.dropFirst(4) : key.hasPrefix("HKLM\\") ? "HKEY_LOCAL_MACHINE" + key.dropFirst(4) : key
+            let text = "Windows Registry Editor Version 5.00\r\n\r\n[\(root)]\r\n\"\(esc(name))\"=\"\(esc(value))\"\r\n"
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            if (try? text.write(toFile: "\(dir)/\(name8)", atomically: true, encoding: .utf8)) != nil {
+                _ = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg import \(shq("C:\\windows\\temp\\\(name8)")) >/dev/null 2>&1")
+                try? FileManager.default.removeItem(atPath: "\(dir)/\(name8)")
+            }
+        } else {
+            _ = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg add \(shq(key)) /v \(shq(name)) /t \(type) /d \(shq(value)) /f >/dev/null 2>&1")
+        }
         var l = ledger(bottle).filter { !($0.key == key && $0.name == name) }
         l.append(RegEntry(key: key, name: name, value: value, exe: exe, owner: owner)); saveLedger(bottle, l)
     }
@@ -38,13 +52,24 @@ extension Model {
         guard section.contains("\"Hidden\"=dword:00000001") else { return }
         regDelete(bottle, "HKCU\\Software\\Wine\\Systray", "Hidden")
     }
-    // Bottles set up before NoDockIcon existed get it on their next Steam start, once (user.reg read as text, as above).
+    // Bottles set up before NoDockIcon / QuitRuns existed get them on their next Steam start, once (user.reg read as text, as above).
     nonisolated static let steamNoDockKey = "HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\Mac Driver"
+    // Mac Quit on Steam's Dock icon (it belongs to steamwebhelper.exe) ends all of Steam, not just the helper that steam.exe
+    // restarts at once (2026-10-31: "it's not staying closed"). Read by the Dock add-on.
+    nonisolated static let steamQuitKey = "HKCU\\Software\\Wine\\AppDefaults\\steamwebhelper.exe\\Mac Driver"
+    nonisolated static let steamQuitCommand = "C:\\Program Files (x86)\\Steam\\steam.exe -shutdown"
     nonisolated static func healSteamDockIcon(_ bottle: String) {
         let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(bottle)/user.reg", encoding: .utf8)) ?? ""
-        if let r = reg.range(of: "[Software\\\\Wine\\\\AppDefaults\\\\steam.exe\\\\Mac Driver]"),
-           (reg[r.upperBound...].components(separatedBy: "\n\n").first ?? "").contains("\"NoDockIcon\"=\"y\"") { return }
-        regSet(bottle, steamNoDockKey, "NoDockIcon", "y", type: "REG_SZ", exe: "steam.exe", owner: "bottle")
+        func has(_ section: String, _ line: String) -> Bool {
+            guard let r = reg.range(of: section) else { return false }
+            return (reg[r.upperBound...].components(separatedBy: "\n\n").first ?? "").contains(line)
+        }
+        if !has("[Software\\\\Wine\\\\AppDefaults\\\\steam.exe\\\\Mac Driver]", "\"NoDockIcon\"=\"y\"") {
+            regSet(bottle, steamNoDockKey, "NoDockIcon", "y", type: "REG_SZ", exe: "steam.exe", owner: "bottle")
+        }
+        if !has("[Software\\\\Wine\\\\AppDefaults\\\\steamwebhelper.exe\\\\Mac Driver]", "\"QuitRuns\"=") {
+            regSet(bottle, steamQuitKey, "QuitRuns", steamQuitCommand, type: "REG_SZ", exe: "steamwebhelper.exe", owner: "bottle")
+        }
     }
     // Current value from the bottle's live registry (nil = not set).
     nonisolated static func regGet(_ bottle: String, _ key: String, _ name: String) -> String? {

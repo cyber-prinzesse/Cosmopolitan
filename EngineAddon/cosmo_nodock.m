@@ -3,6 +3,10 @@
  *   [Software\\Wine\\AppDefaults\\<exe>\\Mac Driver] "NoDockIcon"="y"   no Dock icon of its own (steam.exe beside its window)
  *                                                    "AppName"="…"      the name macOS shows (Dock, app switcher); a game
  *                                                                        started by Steam otherwise inherits Steam's name
+ *                                                    "QuitRuns"="C:\\…\\steam.exe -shutdown"   a Mac Quit (Dock, Cmd-Q) runs this
+ *                                                                        Windows command instead of ending only this process
+ *                                                                        (steamwebhelper.exe owns Steam's Dock icon; quitting it
+ *                                                                        alone made steam.exe start a new one at once)
  * and, for games Steam starts, <prefix>/options/dock-names.txt ("exe<TAB>name" lines Cosmopolitan writes from the library).
  * Loaded by winemac.so (one extra LC_LOAD_DYLIB); replaces -[WineApplicationController transformProcessToForeground:] and
  * calls the original for every program without NoDockIcon.
@@ -16,9 +20,12 @@
 #include <dlfcn.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include <spawn.h>
 
+extern char **environ;
 static IMP original;
 static IMP set_icon_original;
+static IMP should_terminate_original;
 
 static NSImage *cosmo_dock_icon(void)
 {
@@ -85,12 +92,9 @@ static NSString *unescape(NSString *s)
     return out;
 }
 
-/* This program's [AppDefaults\<exe>\Mac Driver] string values, read once. */
-static NSDictionary<NSString *, NSString *> *mac_driver_values(void)
+/* This program's [AppDefaults\<exe>\Mac Driver] string values, read from user.reg now. */
+static NSDictionary<NSString *, NSString *> *read_mac_driver_values(void)
 {
-    static NSDictionary *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
         NSMutableDictionary *out = [NSMutableDictionary dictionary];
         const char *prefix = getenv("WINEPREFIX");
         NSString *exe = windows_exe_name();
@@ -117,8 +121,15 @@ static NSDictionary<NSString *, NSString *> *mac_driver_values(void)
             NSArray *f = [line componentsSeparatedByString:@"\t"];
             if (f.count == 2 && [[f[0] lowercaseString] isEqualToString:exe] && [f[1] length]) { out[@"AppName"] = f[1]; break; }
         }
-        values = [out copy];
-    });
+        return [out copy];
+}
+
+/* Read once: the Dock name and icon choice are made when the first window appears. */
+static NSDictionary<NSString *, NSString *> *mac_driver_values(void)
+{
+    static NSDictionary *values;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ values = read_mac_driver_values(); });
     return values;
 }
 
@@ -165,11 +176,43 @@ static void transform(id self, SEL _cmd, BOOL activateIfTransformed)
         ((void (*)(id, SEL, BOOL))objc_msgSend)(self, @selector(tryToActivateIgnoringOtherApps:), YES);
 }
 
+
+/* Mac Quit (Dock menu, Cmd-Q, app switcher) on a program with QuitRuns: start that Windows command with this process's own
+ * loader and environment (same prefix, same sync mode, so "steam.exe -shutdown" reaches the running Steam) and keep this
+ * process alive; the command ends it. Logout, restart and shutdown keep Wine's own handling so macOS is never held up. */
+static NSApplicationTerminateReply should_terminate(id self, SEL _cmd, NSApplication *sender)
+{
+    /* Fresh read: Cosmopolitan may add QuitRuns while this program runs (Wine writes user.reg up to ~30 s later). */
+    NSString *cmd = read_mac_driver_values()[@"QuitRuns"];
+    NSAppleEventDescriptor *ev = [[NSAppleEventManager sharedAppleEventManager] currentAppleEvent];
+    OSType reason = (OSType)[[ev attributeDescriptorForKeyword:kAEQuitReason] int32Value];
+    const char *loader = getenv("WINELOADER");
+    NSRange exe = cmd ? [cmd.lowercaseString rangeOfString:@".exe"] : NSMakeRange(NSNotFound, 0);
+    BOOL user_quit = reason != kAELogOut && reason != kAEReallyLogOut && reason != kAEShowRestartDialog && reason != kAEShowShutdownDialog;
+    if (!user_quit || !loader || !*loader || exe.location == NSNotFound)
+        return ((NSApplicationTerminateReply (*)(id, SEL, NSApplication *))should_terminate_original)(self, _cmd, sender);
+
+    NSString *path = [[cmd substringToIndex:NSMaxRange(exe)] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\" "]];
+    NSString *rest = [[cmd substringFromIndex:NSMaxRange(exe)] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\" "]];
+    NSMutableArray<NSString *> *args = [NSMutableArray arrayWithObjects:[NSString stringWithUTF8String:loader], path, nil];
+    for (NSString *a in [rest componentsSeparatedByString:@" "]) if (a.length) [args addObject:a];
+    char **argv = calloc(args.count + 1, sizeof(char *));
+    for (NSUInteger i = 0; i < args.count; i++) argv[i] = (char *)args[i].UTF8String;
+    pid_t pid;
+    int rc = posix_spawn(&pid, loader, NULL, NULL, argv, environ);
+    free(argv);
+    if (rc != 0)   /* could not hand over: quit the usual way rather than ignore the user */
+        return ((NSApplicationTerminateReply (*)(id, SEL, NSApplication *))should_terminate_original)(self, _cmd, sender);
+    return NSTerminateCancel;
+}
+
 __attribute__((constructor)) static void install(void)
 {
     Class c = objc_getClass("WineApplicationController");
     Method m = c ? class_getInstanceMethod(c, @selector(transformProcessToForeground:)) : NULL;
     if (m) original = method_setImplementation(m, (IMP)transform);
+    Method q = c ? class_getInstanceMethod(c, @selector(applicationShouldTerminate:)) : NULL;
+    if (q) should_terminate_original = method_setImplementation(q, (IMP)should_terminate);
 
     Method sm = class_getInstanceMethod(objc_getClass("NSApplication"), @selector(setApplicationIconImage:));
     if (sm) set_icon_original = method_setImplementation(sm, (IMP)set_application_icon_image);
