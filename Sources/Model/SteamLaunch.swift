@@ -158,8 +158,10 @@ extension Model {
             let up = steamRunning(in: b)
             let was = steamSeenRunning[b] ?? false
             steamSeenRunning[b] = up
+            if up && !was { Model.setSteamUserQuit(b, false) }   // Steam runs again (any starter): autostart may bring it next time
             if was && !up {
                 if !steamStopOwned.contains(b) {
+                    Model.setSteamUserQuit(b, true)   // you quit Steam: Cosmopolitan's next start leaves it closed
                     steamRestartEpoch[b] = (steamRestartEpoch[b] ?? 0) + 1
                     if pendingSteamRestart?.bottle == b {
                         pendingSteamRestart = nil
@@ -176,6 +178,18 @@ extension Model {
         guard !selected.isEmpty else { return }
         steamSeenRunning[selected] = true
         noteSteamRunningState()
+    }
+
+    // Marker for "you quit Steam last": autostart skips that bottle until Steam runs again (2026-10-31: Steam came back after
+    // Cosmopolitan restarted for an update). Not set when Cosmopolitan stops Steam itself (restartSteam / stopSteam).
+    nonisolated static func steamUserQuitPath(_ bottle: String) -> String { "\(bottlesDir)/\(bottle)/options/.steam-user-quit" }
+    nonisolated static func steamUserQuit(_ bottle: String) -> Bool { FileManager.default.fileExists(atPath: steamUserQuitPath(bottle)) }
+    nonisolated static func setSteamUserQuit(_ bottle: String, _ on: Bool) {
+        let p = steamUserQuitPath(bottle)
+        if on {
+            try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: p, contents: Data())
+        } else if FileManager.default.fileExists(atPath: p) { try? FileManager.default.removeItem(atPath: p) }
     }
 
     func scheduleSteamLaunchSync(_ bottle: String) {

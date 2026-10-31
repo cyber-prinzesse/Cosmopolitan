@@ -209,6 +209,9 @@ import Network
     func autostartAllowed() -> Bool { (UserDefaults.standard.object(forKey: "autostartSteam") == nil || UserDefaults.standard.bool(forKey: "autostartSteam")) && launchEnvRaw()["AUTOSTART_STEAM"] != "0" }
     func autostart() {   // a bottle with Steam gets Steam started with the app (AUTOSTART_STEAM=0 in cosmopolitan.env opts out)
         guard !cliMode, autostartAllowed(), let s = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) else { return }
+        if Model.steamUserQuit(selected) {   // you quit Steam last time: it stays closed until you start it
+            let msg = "Steam stays closed: you quit it last time. Start it from the library when you want it.\n"; log += msg; logToFile(msg); return
+        }
         launch(s)   // launch() skips it when Steam is already running
     }
     var watchers: [DispatchSourceFileSystemObject] = [], watchedBottle = "", rescanWork: DispatchWorkItem?

@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--steamloop", "--faultloop", "--memcheck", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--steam-exit-sync", "--steam-launch-sync", "--steam-idle", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--backup-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--bugreport-url", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine", "--nodock-engine", "--loader-name", "--preview-preparing"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--steam-watch-tick", "--steamloop", "--faultloop", "--memcheck", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--steam-exit-sync", "--steam-launch-sync", "--steam-idle", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--backup-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--bugreport-url", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine", "--nodock-engine", "--loader-name", "--preview-preparing"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { _ = logFile; return }   // the window app's fresh log begins at its start, not at its first write
         cliMode = true
         let m = Model()
@@ -29,6 +29,9 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
             m.steamExitSyncNow()
             let wait = m.steamLaunchSyncDelay + 0.5
             RunLoop.main.run(until: Date().addingTimeInterval(wait))
+        case "--steam-watch-tick":   // one tick of the background Steam watch, as a fresh app start sees it
+            m.noteSteamRunningState()
+            m.log += "steam watch tick: Steam running: \(m.steamRunning()), quit by user: \(Model.steamUserQuit(m.selected))\n"
         case "--steam-launch-sync":   // Steam already down: same as GUI startup sync (no exit edge)
             m.syncSteamLaunchOptionsWhileSteamDown()
             m.log += "steam-launch-sync: done (Steam running: \(m.steamRunning()))\n"
@@ -54,6 +57,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
         case "--settings":   // what the app decides from each setting, through the same code that uses it
             print("engine setting      → wine used: \(wineBin)  (installed: \(engineOK))")
             print("autostartSteam      → autostart allowed: \(m.autostartAllowed())")
+            print("steam quit by user  → autostart skips \(m.selected): \(Model.steamUserQuit(m.selected))")
             print("compatReports       → long session offers a report: \(Model.shouldOfferReport(enabled: UserDefaults.standard.bool(forKey: "compatReports"), seconds: 600, alreadyOffered: false))")
         case "--clean-driver-copies": let r = Model.cleanDriverCopies(m.selected); m.log += r.isEmpty ? "\(m.selected): no driver copies in system32/syswow64.\n" : "\(m.selected): moved \(r.count) driver copies:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n"
         case "--sweep-registry": let r = m.sweepRegistry(m.selected); m.log += r.isEmpty ? "\(m.selected): no registry settings to remove.\n" : "\(m.selected): removed \(r.count) registry settings:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n"
