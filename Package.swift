@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "Cosmopolitan",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v15)],
     dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")],
     targets: [
         .target(name: "CosmoNative", path: "Sources/Native", publicHeadersPath: ".",
