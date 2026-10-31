@@ -2,6 +2,8 @@
 # testenv_cleanup must kill native stand-ins AND Wine programs under this run's $T/ (not only wineservers), including on
 # fail() and SIGTERM, without touching a control process started from a different cosmotest.* folder.
 # Wine rewrites argv to C:\… so cleanup must match by executable path (proc_pidpath), and must wineserver -k before kill.
+# Cosmos may run from a temp prefix *outside* $T while holding files open under $T/ — those must die too; a process that
+# only holds a file in another folder must survive.
 source "${0:A:h}/../lib/testenv.sh"
 fail() { print "FAIL: $*"; exit 1; }
 
@@ -153,12 +155,71 @@ done
 still_alive $CTRLPID || fail "phase (d): control process in $CTRL was killed"
 print "ok: fail() cleanup stopped Wine HostApp+notepad under $T_D; control survived"
 
+# --- (e) open-file under $T/: stand-in binary lives OUTSIDE $T but holds a file open inside it (Cosmos temp-prefix shape).
+#     Control: same binary outside, holds a file only under $CTRL — must survive. ---
+cat > "$BUILD/holdopen.c" <<'C'
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+int main(int argc, char **argv) {
+  if (argc < 2) return 2;
+  int fd = open(argv[1], O_RDONLY);
+  if (fd < 0) { perror("open"); return 1; }
+  for (;;) pause();
+  return 0;
+}
+C
+clang -O0 -o "$BUILD/holdopen" "$BUILD/holdopen.c" || fail "could not build holdopen stand-in"
+T_E_FILE="$BUILD/te"
+OUTSIDE_HOLD="$BUILD/outside-hold"
+CTRL_HOLD_FILE="$CTRL/control-holdfile"
+: > "$CTRL_HOLD_FILE"
+"$BUILD/holdopen" "$CTRL_HOLD_FILE" &
+CTRL_HOLD_PID=$!
+sleep 0.3
+still_alive $CTRL_HOLD_PID || fail "control holdopen did not start"
+(
+  unset TESTENV_CLEANED
+  TESTENV_NO_ENGINE=1
+  testenv_init >/dev/null || exit 1
+  eval "$(testenv_trap_cleanup)"
+  [[ -d "$T" ]] || { print -u2 "FAIL: \$T missing"; exit 2; }
+  hold="$T/held-inside"
+  : > "$hold"
+  cp "$BUILD/holdopen" "$OUTSIDE_HOLD" || exit 2
+  # Run from outside $T (exe path is under /tmp/cosmo-orphan-build…, not under $T).
+  "$OUTSIDE_HOLD" "$hold" &
+  HP=$!
+  sleep 0.4
+  kill -0 $HP 2>/dev/null || { print -u2 "FAIL: outside holdopen did not start"; exit 2; }
+  # Must be selected by open-file rule (exe is NOT under $T).
+  print -r -- " $(orphans_under "$T") " | grep -q " $HP " \
+    || { print -u2 "FAIL: outside holdopen pid $HP not listed under \$T (got: $(orphans_under "$T"))"; exit 2; }
+  print -r -- "$T" > "$T_E_FILE"
+  print -r -- "$HP" > "$BUILD/te_pid"
+  fail "forced fail for cleanup_orphans (e) open-file"
+)
+ec_e=$?
+[[ $ec_e -eq 1 ]] || fail "phase (e): expected exit 1 from fail(), got $ec_e"
+T_E=$(cat "$T_E_FILE")
+HP_E=$(cat "$BUILD/te_pid")
+sleep 0.5
+still_alive $HP_E && fail "phase (e): outside holdopen pid $HP_E still alive after cleanup (open file under $T_E)"
+left_e=$(orphans_under "$T_E")
+[[ -z "$left_e" ]] || fail "phase (e): orphans still under $T_E: $left_e"
+still_alive $CTRLPID || fail "phase (e): control busy in $CTRL was killed"
+still_alive $CTRL_HOLD_PID || fail "phase (e): control holdopen (file outside \$T) was killed"
+print "ok: fail() cleanup killed outside stand-in holding a file under \$T; control holdopen survived"
+
 # --- control still alive; tear it down ourselves (exact pid — never a broad pgrep) ---
 still_alive $CTRLPID || fail "control died unexpectedly"
 kill -TERM $CTRLPID 2>/dev/null
+kill -TERM $CTRL_HOLD_PID 2>/dev/null
 sleep 0.5
 kill -KILL $CTRLPID 2>/dev/null
+kill -KILL $CTRL_HOLD_PID 2>/dev/null
 wait $CTRLPID 2>/dev/null
+wait $CTRL_HOLD_PID 2>/dev/null
 rm -rf "$CTRL"
 print "ok: control from a different cosmotest.* folder was never reaped by another run's cleanup"
 print "PASS cleanup_orphans"
