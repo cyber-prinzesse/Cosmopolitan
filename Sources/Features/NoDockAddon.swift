@@ -107,7 +107,8 @@ extension Model {
             let names = (byBottle[b] ?? [:]).compactMapValues { $0.count == 1 ? $0.first : nil }
             if engineHasDockPatches() {
                 let helpers = Model.storeHelperDockNames(b), want = names.merging(helpers) { a, _ in a }
-                Task.detached { Model.syncDockAppNames(b, want) }
+                // GUI: reg import is slow (1.5–7 s) — do it off the main thread. CLI (--status, tests): must finish before exit.
+                if cliMode { Model.syncDockAppNames(b, want) } else { Task.detached { Model.syncDockAppNames(b, want) } }
             }
             let lines = names.map { "\($0.key)\t\($0.value)" }.sorted()
             let path = "\(bottlesDir)/\(b)/options/dock-names.txt", text = lines.isEmpty ? "" : lines.joined(separator: "\n") + "\n"
@@ -143,10 +144,12 @@ extension Model {
         for exe in have.keys.sorted() where want[exe] == nil {
             reg += "\r\n[HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\\(exe)\\Mac Driver]\r\n\"AppName\"=-\r\n"
         }
-        let file = "\(bottlesDir)/\(bottle)/options/.dock-names.reg"
-        try? FileManager.default.createDirectory(atPath: (file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        // Restricted bottles have no Z:, so Wine cannot open a Unix path outside C:; same pattern as installWineMono.
+        let prefix = "\(bottlesDir)/\(bottle)", tmp = prefix + "/drive_c/windows/temp"
+        let file = tmp + "/.cosmo-dock-names.reg"
+        try? FileManager.default.createDirectory(atPath: tmp, withIntermediateDirectories: true)
         guard (try? (Data([0xFF, 0xFE]) + (reg.data(using: .utf16LittleEndian) ?? Data())).write(to: URL(fileURLWithPath: file))) != nil else { return }
-        _ = shell("\(plainWine("\(bottlesDir)/\(bottle)")) reg import \(shq(file)) >/dev/null 2>&1")
+        _ = shell("cd '\(tmp)' && \(plainWine(prefix)) reg import 'C:\\windows\\temp\\.cosmo-dock-names.reg' >/dev/null 2>&1")
         try? FileManager.default.removeItem(atPath: file)
         saveLedger(bottle, l.filter { $0.owner != owner } + want.sorted { $0.key < $1.key }.map { RegEntry(key: key($0.key), name: "AppName", value: $0.value, exe: $0.key, owner: owner) })
     }
