@@ -6,17 +6,28 @@ source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; eval "$(
 fail() { print -r -- "FAIL: $*"; exit 1; }
 tw_snapshot
 ct --newbottle G >/dev/null 2>&1
-# Wine 10 (this test's default engine): even with the sidecar installed, never set it.
+# Wine 10 (a stand-in with its layout, so this runs on every engine under test): even with the sidecar installed, never set it.
 : > "$TS/x87sidecar"   # a stand-in file; the gate checks existence, launchEnv only passes the path to Wine 11's hook
-ct --print-env G 2>/dev/null | grep -q ROSETTA_X87_PATH && fail "Wine 10 got ROSETTA_X87_PATH (it has no x87 hook; Wine 10 must be unchanged)"
+testenv_fake_wine10; defaults write "$TESTID" engine fake10
+r=$(ct --print-env G 2>/dev/null | grep '^ROSETTA_X87_PATH=')
+defaults write "$TESTID" engine "$ENGINE"
+[[ -z "$r" ]] || fail "Wine 10 got ROSETTA_X87_PATH (it has no x87 hook; Wine 10 must be unchanged)"
 print "ok: Wine 10 never sets ROSETTA_X87_PATH, even with the sidecar installed"
+# The engine under test, when it is a Wine 11 one (by layout, as the app decides): set, to the installed sidecar's path.
+if testenv_engine_is_wine11; then
+  r=$(ct --print-env G 2>/dev/null | grep '^ROSETTA_X87_PATH=')
+  [[ -n "$r" && "${${r#ROSETTA_X87_PATH=}:A}" == "${TS:A}/x87sidecar" ]] || fail "$ENGINE (Wine 11) with the sidecar: expected ROSETTA_X87_PATH=$TS/x87sidecar, got: ${r:-nothing}"
+  print "ok: $ENGINE (Wine 11) with the sidecar sets it to the installed path"
+fi
 rm -f "$TS/x87sidecar"
 ct --print-env G 2>/dev/null | grep -q ROSETTA_X87_PATH && fail "set with no sidecar installed"
 print "ok: not set when the sidecar isn't installed"
 tw_check || fail "your real data changed"
-# Wine 11 (r29), when present on this Mac: with the sidecar it IS set, to the installed path.
+# Wine 11 (r29), when present on this Mac and the engine under test isn't already a Wine 11 one (checked above): set, to the installed path.
 R="$REAL_HOME/Cosmopolitan-engine-trials/highball-11.0-r29"
-if [[ -d "$R/wswine.bundle" ]]; then
+if testenv_engine_is_wine11; then
+  :
+elif [[ -d "$R/wswine.bundle" ]]; then
   testenv_cleanup; COSMO_ENGINE=highball-11.0-r29 COSMO_ENGINE_DIR="$R" testenv_init >/dev/null || exit 1
   : > "$TS/x87sidecar"; ct --newbottle W >/dev/null 2>&1
   r=$(ct --print-env W 2>/dev/null | grep '^ROSETTA_X87_PATH=')

@@ -14,7 +14,10 @@ BND="$(tprefix BN)/drive_c/Program Files (x86)/Battle.net"; mkdir -p "$BND"
 print 'int main(void) { return 0; }' > "$T/bn.c"
 i686-w64-mingw32-gcc -O2 -s "$T/bn.c" -o "$BND/Battle.net Launcher.exe" || fail "could not build the stand-in exe"
 
+# Wine 10 leg: a stand-in folder with Wine 10's layout, so it runs whatever engine is under test (the check reads the layout only).
+testenv_fake_wine10; defaults write "$TESTID" engine fake10
 c=$(ct --check BN "$BND/Battle.net Launcher.exe" 2>&1)
+defaults write "$TESTID" engine "$ENGINE"
 [[ "$c" != *"Wine 11"* && "$c" != *"light: red"* ]] || fail "Wine 10: Battle.net must be untouched: $c"
 print -r -- "ok: on Wine 10 Battle.net isn't flagged"
 defaults write "$TESTID" engine fake11
