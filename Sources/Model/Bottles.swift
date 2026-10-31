@@ -24,7 +24,9 @@ extension Model {
         try? FileManager.default.createDirectory(atPath: "\(bottlesDir)/\(name)", withIntermediateDirectories: true)
         // mscoree/mshtml off: skips Mono/Gecko download prompts during creation.
         // No driver slots for wineboot: with them active it copies the drivers' DLLs into system32/syswow64 as if they were Wine's own.
+        PreparingWindow.begin(bottle: name)   // native preparing chrome (GUI only; skipped in cliMode)
         wine(name, ["wineboot", "-u"], env: ["WINEDLLOVERRIDES": "mscoree,mshtml="], drivers: []) {
+            PreparingWindow.end()
             // Controllers via SDL as XInput gamepads (raw HID only reaches DirectInput, and Steam Input can't drive it under Wine).
             self.wine(name, ["reg", "add", "HKLM\\System\\CurrentControlSet\\Services\\winebus", "/v", "DisableHidraw", "/t", "REG_DWORD", "/d", "1", "/f"]) {
                 self.wine(name, ["winecfg", "-v", t]) {

@@ -51,11 +51,11 @@ extension Model {
             try p.run()
             // Rosetta fault-loop watch: sample the exception-server thread while this program (or its Wine child) runs.
             if let exe { watchFaultLoop(pid: p.processIdentifier, exe: exe) }
-        } catch { log += "Failed: \(error)\n"; busy = false }
+        } catch { log += "Failed: \(error)\n"; busy = false; then?() }   // still run then (e.g. PreparingWindow.end) on launch failure
     }
 
     func wine(_ bottle: String, _ args: [String], block: Bool = true, env: [String: String] = [:], drivers: [String]? = nil, exe: String? = nil, then: (@MainActor () -> Void)? = nil) {
-        guard engineOK else { log += "Wine engine missing.\n"; return }
+        guard engineOK else { log += "Wine engine missing.\n"; Task { @MainActor in then?() }; return }
         let loader = exe.map(loaderNamed) ?? wineBin
         var e = launchEnv(bottle, drivers: drivers, fullSpeed: env["FULL_SPEED"] == "1").merging(env) { $1 }
         // Children CreateProcess through WINELOADER; keep it on the dispatcher so each exe can get its own Dock file name.
