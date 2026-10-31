@@ -21,16 +21,12 @@ func enterTestModeIfNeeded() {
     for p in [support, bottlesDir, logPath, Model.sharedRoot] where inside(p) { die("refusing to start: \(p) is inside your real home \(realHome).") }
 }
 // The engine is a setting (Settings › Engine). The everyday app defaults to Wine 10 (10.0_8, tested; 11.x Staging renders Steam black on
-// macOS 27). The Beta defaults to a Wine 11 engine once one is in its engines folder (Cosmos first), and to Wine 10 until then: first-run setup
-// can only install the pinned Wine 10 (Components.swift), so a fresh Beta still gets a working engine.
+// macOS 27). The Beta runs only Cosmos (below).
 let wine10Engine = "WS12WineSikarugir10.0_8"
-let wine11Engine = "highball-11.0-r29"
-// Cosmos: our own Wine 11 build (github.com/cyber-prinzesse/cosmos-engine). The Beta prefers it over Highball's when both are there.
+// Cosmos: our own Wine 11 build (github.com/cyber-prinzesse/cosmos-engine). The Beta runs only Cosmos; first-run setup downloads it
+// (Pins.cosmosEngine). The regular app stays on Wine 10.
 let cosmosEngine = "cosmos-11.0-r10"
-var defaultEngine: String {
-    guard isBetaBuild else { return wine10Engine }
-    return [cosmosEngine, wine11Engine].first(where: { engineIsWine11($0) }) ?? wine10Engine
-}
+var defaultEngine: String { isBetaBuild ? cosmosEngine : wine10Engine }
 var engineName: String { UserDefaults.standard.string(forKey: "engine") ?? defaultEngine }
 var engineDir: String { support + "/engines/\(engineName)/wswine.bundle" }
 var wineBin: String { engineDir + "/bin/wine" }

@@ -31,6 +31,11 @@ enum Pins {
     static let sikarugirEngine = Pinned(name: "Wine engine (Sikarugir build)", version: "WS12WineSikarugir10.0_8", file: "WS12WineSikarugir10.0_8.tar.xz",
         url: "https://github.com/Sikarugir-App/Engines/releases/download/v1.0/WS12WineSikarugir10.0_8.tar.xz",
         sha256: "2a6bcf2a3bf13cddf825599b6bc1e3659cbf71e1282c6d77141a92f6ac8d4c68", license: "LGPL-2.1-or-later (Wine)", source: "github.com/Sikarugir-App/Engines release v1.0")
+    // Cosmos, our Wine 11 engine (the Beta's only engine): the cosmos-engine release tarball, pinned by SHA-256. It unpacks to
+    // engine/ plus wswine.bundle -> engine, the layout the engines folder expects.
+    static let cosmosEngine = Pinned(name: "Cosmos engine (Wine 11)", version: "cosmos-11.0-r10", file: "cosmos-11.0-r10.tar.gz",
+        url: "https://github.com/cyber-prinzesse/cosmos-engine/releases/download/cosmos-11.0-r10/cosmos-11.0-r10.tar.gz",
+        sha256: "84a1a05e09c5d6cbffb4f64d079f74949003e63b116a3b4b64f4868967bef0fa", license: "LGPL-2.1-or-later (Wine)", source: "github.com/cyber-prinzesse/cosmos-engine release cosmos-11.0-r10")
     static let sikarugirTemplate = "Template-1.0.24"
     static let sikarugirTemplateURL = "https://github.com/Sikarugir-App/Template/releases/download/v1.0/Template-1.0.24.tar.xz"
     static let templateTrees: [String: String] = [
