@@ -12,6 +12,7 @@ extension Model {
     // if it isn't, which used to need Repair. Left alone while a game that asked for DualSense native mode is running.
     func controllerConnected(_ name: String) {
         updateStatus(); guard !selected.isEmpty else { return }
+        let freed = Model.endStaleWine(selected); if !freed.isEmpty { log += freed; logToFile(freed) }   // a dead session can hold the pad
         let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " "), bus = "HKLM\\System\\CurrentControlSet\\Services\\winebus"
         let sdlOff = sh("env \(env) WINEDEBUG=-all '\(wineBin)' reg query '\(bus)' /v 'Enable SDL' 2>/dev/null | tr -d '\\r'").contains("0x0")
         let native = library.contains { bottleOf($0) == selected && options($0)["DUALSENSE"]?.lowercased() == "native" && isRunning(winPath($0)) }
