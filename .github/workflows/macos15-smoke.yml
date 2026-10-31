@@ -4,7 +4,7 @@ name: macOS 15 smoke test
 on:
   workflow_dispatch:
   push:
-    branches: [macos-15-support]
+    branches: [main]
 jobs:
   smoke:
     runs-on: macos-15
