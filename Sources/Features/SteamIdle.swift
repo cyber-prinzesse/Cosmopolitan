@@ -91,7 +91,10 @@ extension Model {
 
         // Only spawn taskpolicy for pids not already tracked (Steam respawns helpers). Do not re-assert every 5 s —
         // each call launches /usr/sbin/taskpolicy (a full process), not a cheap syscall.
-        let toAdd = live.subtracting(applied)
+        // Skip helpers still starting: before the window exists Steam counts as "hidden", and Darwin BG (CPU + disk I/O throttle)
+        // on a booting webhelper stretched a cold start to 105 s / 17 min until Steam's watchdog said "steamwebhelper is not
+        // responding" (2026-10-31). Young pids are picked up by a later 5 s tick.
+        let toAdd = live.subtracting(applied).filter { Model.processAge($0) >= Model.steamIdleDietMinAge }
         for pid in toAdd { Model.setDarwinBackground(pid, enabled: true) }
         applied = applied.union(toAdd).intersection(live)
         steamIdleDietApplied[bottle] = applied
@@ -101,6 +104,21 @@ extension Model {
             log += m; logToFile(m); steamIdleDietLogged.insert(bottle + ":on")
         }
         return Array(applied).sorted()
+    }
+
+    // ponytail: fixed 120 s grace; tie it to "Steam's window seen once" if a slow Mac still trips the watchdog.
+    // Test builds: COSMO_TEST_DIET_MIN_AGE overrides (stand-ins are fresh).
+    nonisolated static var steamIdleDietMinAge: TimeInterval {
+        if isTestBuild, let v = ProcessInfo.processInfo.environment["COSMO_TEST_DIET_MIN_AGE"], let s = TimeInterval(v) { return s }
+        return 120
+    }
+
+    // Seconds since pid started; 0 when unknown (treated as young, so never throttled by mistake).
+    nonisolated static func processAge(_ pid: Int32) -> TimeInterval {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return 0 }
+        return Date().timeIntervalSince1970 - (TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
     }
 
     // taskpolicy -b/-B (not setpriority alone): on macOS 26, setpriority(PRIO_DARWIN_PROCESS, pid, 1) succeeds

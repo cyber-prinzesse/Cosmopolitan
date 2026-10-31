@@ -47,6 +47,14 @@ print -r -- "ok: webhelpers T=$TP1 U=$UP1 foreign=$FOREIGN"
 throttled_of() { print -r -- "$1" | sed -n 's/.*throttled=//p' | tr -d '\r' | head -1; }
 
 note "ct --steam-idle (cold start can take ~20 s)…"
+# Default grace (120 s): a just-started webhelper is never throttled — Steam's window doesn't exist yet while it boots,
+# and Darwin BG on a booting helper made Steam report "steamwebhelper is not responding" (2026-10-31).
+out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
+print -r -- "$out" | grep -q "webhelpers=.*$TP1" || fail "Cosmo did not see T helper (grace leg): $out"
+[[ -z "$(throttled_of "$out")" ]] || fail "young webhelper throttled during startup grace: $out"
+print -r -- "ok: young helper (startup) → not throttled"
+# Every later leg drops the grace (stand-ins are seconds old).
+export COSMO_TEST_DIET_MIN_AGE=0
 out=$(COSMO_TEST_STEAM_RUNNING=1 COSMO_TEST_STEAM_VISIBLE=0 ct --steam-idle T 2>&1)
 note "hidden tick done"
 print -r -- "$out" | grep -q "webhelpers=.*$TP1" || fail "Cosmo did not see T helper: $out"
