@@ -66,6 +66,13 @@ extension Model {
         let w = plainWine(prefix)
         switch r {
         case .vcredist86, .vcredist64:
+            // Microsoft's installer keeps a DLL whose version is not older than its own, and Wine 11.21's stand-ins report the same
+            // version as the pinned redistributable (14.51.36247.0): nothing was written. Wine's stand-ins go first (winetricks does
+            // the same); only files with Wine's stamp, and Wine still finds its builtins without them.
+            let sys = "\(prefix)/drive_c/windows/\(r == .vcredist64 ? "system32" : "syswow64")"
+            for d in vcRedistDLLs where fm.fileExists(atPath: "\(sys)/\(d).dll") && !isMicrosoftDLL("\(sys)/\(d).dll") {
+                try? fm.removeItem(atPath: "\(sys)/\(d).dll")
+            }
             _ = shell("cd '\(tmp)' && \(w) 'C:\\windows\\temp\\\(r.pin.file)' /install /quiet /norestart >/dev/null 2>&1")
         case .directx:   // the package is a self-extractor: unpack it, then run Microsoft's own DXSETUP silently
             _ = shell("cd '\(tmp)' && \(w) 'C:\\windows\\temp\\\(r.pin.file)' /Q '/T:C:\\windows\\temp\\dxredist' >/dev/null 2>&1 && \(w) 'C:\\windows\\temp\\dxredist\\DXSETUP.exe' /silent >/dev/null 2>&1")
