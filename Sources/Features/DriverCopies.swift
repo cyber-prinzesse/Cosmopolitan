@@ -15,6 +15,19 @@ private func programName(_ pid: Int32) -> String {
     guard fields.count > 1, let a0 = String(bytes: fields[1], encoding: .utf8) else { return "?" }
     return a0.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? a0
 }
+// Steam's browser keeps compiled shaders from the previous engine's Direct3D; on Cosmos they crashed its GPU process three times and every
+// Steam window stayed blank (Beta bottle, 2026-10-31). An engine change is what triggers the prefix update, so the caches go just before it.
+// Steam rebuilds them; login, games and settings live elsewhere. Skipped while Steam's browser runs in this bottle.
+private func clearSteamGPUCaches(_ prefix: String) {
+    let fm = FileManager.default, users = prefix + "/drive_c/users"
+    guard procFind("steamwebhelper.exe", under: realPath(prefix)).isEmpty else { return }
+    for u in (try? fm.contentsOfDirectory(atPath: users)) ?? [] {
+        let html = "\(users)/\(u)/AppData/Local/Steam/htmlcache"
+        for d in ["GrShaderCache", "ShaderCache", "GraphiteDawnCache"] where fm.fileExists(atPath: html + "/" + d) {
+            try? fm.removeItem(atPath: html + "/" + d)
+        }
+    }
+}
 nonisolated(unsafe) private var updateTimedOut: Set<String> = []   // prefixes whose update ran out of time in this run
 private let updateLock = NSLock()
 func updatePrefixIfStale(_ prefix: String) {
@@ -30,6 +43,7 @@ func updatePrefixIfStale(_ prefix: String) {
     // wineboot otherwise wants its own newer Wine Mono and waits on that download (Wine 11 with Mono 9.4.0 in the bottle: for good).
     let limit = (isTestBuild ? Int(ProcessInfo.processInfo.environment["COSMO_TEST_UPDATE_TIMEOUT"] ?? "") : nil) ?? 300
     let name = (prefix as NSString).lastPathComponent
+    clearSteamGPUCaches(prefix)
     PreparingWindow.begin(bottle: name)   // GUI: Cosmos preparing window while wineboot -u runs (Wine 10 still shows its own underneath)
     defer { PreparingWindow.end() }
     let wb = Process(); wb.executableURL = URL(fileURLWithPath: "/bin/sh")
