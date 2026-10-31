@@ -79,10 +79,10 @@ extension Model {
             activity = gameState(p).word == "Ready" ? "\(appName(p)) is ready." : "\(appName(p)): \(gameState(p).reason)"
         }
     }
-    // "Report a problem": the bug report (log attached) goes to the clipboard and the prefilled report form opens; nothing is sent.
+    // "Report a problem": a prefilled bug report for this game opens on our GitHub (full report on the clipboard); nothing is sent.
     func reportProblem(_ p: String) {
-        copyBugReport(for: p); reportToHighball(p)
-        activity = "A report with the log is on the clipboard and the report form is open. Nothing has been sent."
+        reportBugOnGitHub(for: p)
+        activity = "A prefilled bug report is open on GitHub and the full report is on the clipboard. Nothing is sent until you press Submit."
     }
     // "Add game" › a store: open it where it is installed; otherwise it gets its own bottle (named after the store), created automatically.
     func addStore(_ s: Store) {

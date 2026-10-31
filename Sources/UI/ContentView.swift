@@ -232,8 +232,8 @@ struct ContentView: View {
                                 Button("Delete shaders saved in the bottle", role: .destructive) { m.clearSavedShaders() }
                             }.disabled(m.selected.isEmpty)
                         }.fixedSize()
-                        Button("Bug report") { m.copyBugReport() }
-                            .help("Copies a report with log, engine, drivers and Mac details to the clipboard, with your username and home folder removed.")
+                        Button("Bug report") { m.reportBugOnGitHub() }
+                            .help("Opens a prefilled bug report on GitHub (log, engine, drivers and Mac details, with your username and home folder removed) and copies the full report. Nothing is sent until you press Submit.")
                     }.controlSize(.small)
                     ScrollView { Text(m.logView).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
                         .padding(8).frame(maxHeight: .infinity).background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))

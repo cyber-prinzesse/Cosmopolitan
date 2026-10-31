@@ -16,6 +16,7 @@ extension Model {
         readiness[exe] = launchNeeds(exe)
         if steamGames[exe] != nil { syncSteamLaunchOptions(for: exe) }   // keep Steam's LaunchOptions in step when ARGS (etc.) change
     }
+    nonisolated static let debugChannels = "err+all,warn+module,+seh,+loaddll,fixme-all"
     static let optionsTemplate = """
     # One setting per line. Lines starting with # are ignored.
     # ARGS=-dx11 -windowed          extra command-line arguments
@@ -34,6 +35,7 @@ extension Model {
     # FULL_SPEED=1                  no cooler profile for this game (on battery, Low Power Mode, MacBook Air): no 60 fps cap, full resolution
     # CLOUD_SAVES=1                 mirror this program's save folders to iCloud Drive (non-Steam programs; Steam has Steam Cloud)
     # REPLAY=1                      rolling 30 s screen recording while playing: ⌃⌥⌘R saves the last clip, ⌃⌥⌘S a screenshot
+    # DEBUG=1                     debug log: Wine's errors, exceptions and DLL loads in the log and the bug report (a little slower)
     # WINEDLLOVERRIDES=xaudio2_7=n  any other KEY=VALUE becomes an environment variable
 
     """
