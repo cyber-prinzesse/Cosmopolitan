@@ -45,3 +45,38 @@ extension Model {
         return try? String(contentsOfFile: "\(dir)/\(newest)", encoding: .utf8)
     }
 }
+
+extension Model {
+    // Bug report straight to our GitHub: a prefilled issue in cyber-prinzesse/Cosmopolitan (same text as the clipboard report, so the
+    // username and home folder are already removed). GitHub caps a prefilled link at about 8 KB, so the log is cut from the top until
+    // the link fits; the full report stays on the clipboard. Nothing is sent until the user presses Submit on GitHub.
+    nonisolated static let issueRepo = "https://github.com/cyber-prinzesse/Cosmopolitan/issues/new"
+    nonisolated static func issueURL(title: String, report: String, limit: Int = 7_500) -> URL? {
+        var lines = report.components(separatedBy: "\n")
+        func url(_ body: String) -> URL? {
+            var c = URLComponents(string: issueRepo)
+            c?.queryItems = [.init(name: "title", value: title), .init(name: "body", value: body), .init(name: "labels", value: "bug")]
+            return c?.url
+        }
+        // Drop log lines from the oldest end (the "### Log" block); headers, the last crash and the newest log lines stay.
+        let start = (lines.firstIndex(of: "### Log (last 200 lines)") ?? lines.count) + 2
+        while let u = url(lines.joined(separator: "\n")), u.absoluteString.utf8.count > limit, start < lines.count, lines[start] != "```" {
+            lines.remove(at: start)
+        }
+        guard let u = url(lines.joined(separator: "\n")), u.absoluteString.utf8.count <= limit else {
+            return url(String(report.prefix(2_000)) + "\n…(cut; the full report is on the clipboard)")
+        }
+        return u
+    }
+    func bugIssueURL(for exe: String? = nil) -> URL? {
+        let title = "Bug: \(exe.map { appName($0) } ?? "Cosmopolitan") on \(sh("sysctl -n machdep.cpu.brand_string"))"
+        return Model.issueURL(title: title, report: bugReportText(for: exe))
+    }
+    // Clipboard (the whole report) plus the prefilled issue in the browser.
+    func reportBugOnGitHub(for exe: String? = nil) {
+        copyBugReport(for: exe)
+        guard let u = bugIssueURL(for: exe) else { return }
+        NSWorkspace.shared.open(u)
+        log += "Opened a prefilled bug report on GitHub (cyber-prinzesse/Cosmopolitan). It is sent only when you press Submit there.\n"
+    }
+}

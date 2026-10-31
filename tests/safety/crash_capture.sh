@@ -17,6 +17,20 @@ rep=$(ct --bugreport-text K "$EXE" 2>&1)
 [[ "$rep" == *"### Last crash"* && "$rep" == *"Crashy exited with code 5"* && "$rep" == *"stand-in crash marker 7c41"* ]] || fail "the bug report doesn't attach the crash: $(print -r -- "$rep" | grep -n 'Last crash' | head -2)"
 [[ "$rep" != *"$(id -un)"* ]] || fail "the bug report contains the username"
 print "ok: the bug report attaches the crash record automatically, with the username and home folder removed"
+url=$(ct --bugreport-url K "$EXE" 2>&1 | grep '^https://' | tail -1)
+[[ "$url" == "https://github.com/cyber-prinzesse/Cosmopolitan/issues/new?"* ]] || fail "no prefilled GitHub issue link: ${url:-nothing}"
+[[ "$url" == *"title=Bug:%20Crashy%20on%20"* && "$url" == *"stand-in%20crash%20marker%207c41"* && "$url" == *"labels=bug"* ]] || fail "the issue link lacks the game, the crash or the label: ${url:0:300}"
+(( ${#url} <= 7500 )) || fail "the issue link is ${#url} characters (GitHub's limit is about 8 KB)"
+[[ "$url" != *"$(id -un)"* ]] || fail "the issue link contains the username"
+print "ok: the bug report opens as a prefilled issue in cyber-prinzesse/Cosmopolitan (${#url} characters, crash included, no username)"
+# Debug mode: DEBUG=1 in the program's options turns Wine's error/exception/DLL-load channels on; the crash record then carries them.
+print 'DEBUG=1' > "$(tprefix K)/options/Crashy.exe.env"
+c=$(ct --check K "$EXE" 2>&1); [[ "$c" == *"debug log on"* ]] || fail "DEBUG=1 isn't reported by the launch check: $c"
+ct --launch K "$EXE" --wait 60 >/dev/null 2>&1
+rec2=$(ls -t "$TS/crash-reports/" 2>/dev/null | grep '^Crashy ' | head -1)
+grep -q "loaddll" "$TS/crash-reports/$rec2" || fail "with DEBUG=1 the crash record has no Wine debug lines (loaddll)"
+rm -f "$(tprefix K)/options/Crashy.exe.env"
+print "ok: DEBUG=1 puts Wine's DLL-load and exception log into the crash record"
 # Steam exits with 42 when it restarts itself after a client update: not a crash, so no record and no driver fallback (which would retry
 # it right away on another driver and keep that driver).
 mkdir -p "$(tprefix K)/drive_c/Program Files (x86)/Steam"; STEAM="$(tprefix K)/drive_c/Program Files (x86)/Steam/steam.exe"
