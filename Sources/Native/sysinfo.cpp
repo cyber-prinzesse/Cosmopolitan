@@ -90,6 +90,23 @@ static int proc_find(const char *needle, const char *cwd_under, int32_t *pids, i
     return found;
 }
 
+// True when `pid` holds an open file inside `dir` (or `dir` itself). Ties a Wine process to its bottle when its working folder
+// has left the bottle: steam.exe keeps its logs open in the bottle's Steam folder the whole time it runs.
+static bool proc_has_file_under(int32_t pid, const char *dir) {
+    const size_t len = strlen(dir); if (pid <= 0 || len == 0) return false;
+    int bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nullptr, 0); if (bytes <= 0) return false;
+    std::vector<proc_fdinfo> fds((size_t)bytes / sizeof(proc_fdinfo) + 16);
+    bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds.data(), (int)(fds.size() * sizeof(proc_fdinfo))); if (bytes <= 0) return false;
+    for (int i = 0, n = bytes / (int)sizeof(proc_fdinfo); i < n; i++) {
+        if (fds[i].proc_fdtype != PROX_FDTYPE_VNODE) continue;
+        struct vnode_fdinfowithpath vi;
+        if (proc_pidfdinfo(pid, fds[i].proc_fd, PROC_PIDFDVNODEPATHINFO, &vi, sizeof vi) != (int)sizeof vi) continue;
+        const char *path = vi.pvip.vip_path;
+        if (strncmp(path, dir, len) == 0 && (path[len] == '/' || path[len] == 0)) return true;
+    }
+    return false;
+}
+
 // C boundary: noexcept, nothing escapes into Swift. COSMO_TEST_HOOKS builds can force a throw to prove it.
 static void test_throw() {
 #ifdef COSMO_TEST_HOOKS
@@ -107,6 +124,10 @@ extern "C" int cosmo_proc_find_in(const char *needle, const char *cwd_under, int
     try { test_throw(); return proc_find(needle, cwd_under, pids, cap); } catch (...) { return 0; }
 }
 extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) noexcept { return cosmo_proc_find_in(needle, nullptr, pids, cap); }
+extern "C" int cosmo_proc_has_file_under(int32_t pid, const char *dir) noexcept {
+    if (!dir) return 0;
+    try { test_throw(); return proc_has_file_under(pid, dir) ? 1 : 0; } catch (...) { return 0; }
+}
 
 // Fault-loop watchdog: whole-process PROC_PIDTASKINFO counters. Per-thread times under Rosetta read ~0 for the busy threads of a
 // hang, and the exception-server thread is idle (0 %); the signal is process-wide fault/message storm rates instead.

@@ -4,7 +4,8 @@ extension Model {
     // Troubleshooting: every check is something that actually broke while bringing Steam up on this engine.
     func sh(_ cmd: String) -> String { shell(cmd) }
     // The wineserver serving a prefix holds /tmp/.wine-<uid>/server-<dev>-<inode>/lock, named after the prefix folder's device and inode.
-    nonisolated func prefixServer(_ prefix: String) -> (pid: Int32, path: String)? {
+    nonisolated func prefixServer(_ prefix: String) -> (pid: Int32, path: String)? { Model.prefixServer(prefix) }
+    nonisolated static func prefixServer(_ prefix: String) -> (pid: Int32, path: String)? {
         guard let a = try? FileManager.default.attributesOfItem(atPath: prefix),
               let dev = (a[.systemNumber] as? NSNumber)?.uint64Value, let ino = (a[.systemFileNumber] as? NSNumber)?.uint64Value else { return nil }
         let lock = String(format: "/tmp/.wine-%u/server-%llx-%llx/lock", getuid(), dev, ino)

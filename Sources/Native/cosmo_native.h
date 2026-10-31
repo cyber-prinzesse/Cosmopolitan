@@ -40,6 +40,7 @@ int cosmo_on_battery(void) COSMO_NOEXCEPT;
 // PIDs whose executable path or argv[0] contains `needle` (excluding the caller); later arguments are ignored on purpose. Returns the number written.
 int cosmo_proc_find(const char *needle, int32_t *pids, int cap) COSMO_NOEXCEPT;
 int cosmo_proc_find_in(const char *needle, const char *cwd_under, int32_t *pids, int cap) COSMO_NOEXCEPT;   // …working inside cwd_under
+int cosmo_proc_has_file_under(int32_t pid, const char *dir) COSMO_NOEXCEPT;   // 1 when the process has a file open inside dir
 // PROC_PIDTASKINFO counters for the fault-loop watchdog (cumulative). Returns 0 on success, -1 if no access.
 int cosmo_proc_task_counts(int32_t pid, uint64_t *faults, uint64_t *messages_sent) COSMO_NOEXCEPT;
 

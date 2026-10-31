@@ -17,6 +17,7 @@ extension Model {
         let native = library.contains { bottleOf($0) == selected && options($0)["DUALSENSE"]?.lowercased() == "native" && isRunning(winPath($0)) }
         guard !native, !hidrawDisabled() || sdlOff else { log += "Controller \(name) connected.\n"; return }
         _ = sh("env \(env) '\(wineBin)' reg add '\(bus)' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; env \(env) '\(wineBin)' reg add '\(bus)' /v 'Enable SDL' /t REG_DWORD /d 1 /f >/dev/null 2>&1")
+        Model.touchWinebusStamp(selected)
         log += "Controller \(name) connected and switched on for games in \(selected).\n"; logToFile("Controller \(name) connected and switched on for games in \(selected).\n"); updateStatus()
     }
     func watchControllers() {
@@ -39,9 +40,29 @@ extension Model {
         // Wine 11+ also takes a per-device choice (WineBus\Devices\<VID>, value Hidraw); the 10.0 engine ignores it. Written as well, so on a
         // newer engine only Sony pads (VID 054C) switch and other controllers stay on SDL/XInput.
         _ = sh("env \(env) '\(wineBin)' reg add 'HKLM\\System\\CurrentControlSet\\Services\\winebus\\Devices\\054c' /v Hidraw /t REG_DWORD /d \(native ? 1 : 0) /f >/dev/null 2>&1")
+        Model.touchWinebusStamp(selected)   // wineserver must be younger than this stamp or Steam still has the old bus
         log += native ? "DualSense native mode for \(appName(exe)): the game gets the real pad (triggers, haptics, touchpad); XInput games need the next launch to switch back.\n"
                       : "Controller back to XInput mode (SDL) for \(appName(exe)).\n"
         return true
+    }
+    // winebus reads DisableHidraw only when the prefix starts. A stamp newer than the bottle's wineserver means Steam must restart.
+    nonisolated static func winebusStampPath(_ bottle: String) -> String { "\(bottlesDir)/\(bottle)/options/.cosmo-winebus-stamp" }
+    nonisolated static func touchWinebusStamp(_ bottle: String) {
+        let p = winebusStampPath(bottle)
+        try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: p, contents: Data("\(Date().timeIntervalSince1970)\n".utf8))
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: p)
+    }
+    /// True when DualSense/winebus was written while this bottle's wineserver was already running (or before this server existed).
+    func winebusNeedsSteamReload() -> Bool {
+        guard steamRunning(), let server = Model.prefixServer(realPath("\(bottlesDir)/\(selected)")) else { return false }
+        let stamp = Model.winebusStampPath(selected)
+        guard let stampDate = (try? FileManager.default.attributesOfItem(atPath: stamp))?[.modificationDate] as? Date else { return false }
+        var info = proc_bsdinfo()
+        let ok = proc_pidinfo(server.pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) == Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard ok else { return true }
+        let start = Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+        return start < stampDate
     }
     // One-click (the Controller card's button): force the selected bottle's controller bus into XInput mode — DisableHidraw=1 + SDL on, so
     // SDL presents an Xbox-style pad that every game reads, including titles with no native DualSense support like The Witcher 3. Same writes
@@ -51,6 +72,7 @@ extension Model {
         guard !selected.isEmpty else { return }
         let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " "), bus = "HKLM\\System\\CurrentControlSet\\Services\\winebus"
         _ = sh("env \(env) '\(wineBin)' reg add '\(bus)' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; env \(env) '\(wineBin)' reg add '\(bus)' /v 'Enable SDL' /t REG_DWORD /d 1 /f >/dev/null 2>&1")
+        Model.touchWinebusStamp(selected)
         log += "Controller switched to XInput (SDL) for \(selected) — relaunch the game to pick it up.\n"; logToFile("Controller switched to XInput (SDL) for \(selected).\n"); updateStatus()
     }
 }

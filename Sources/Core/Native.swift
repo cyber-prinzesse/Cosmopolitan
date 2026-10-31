@@ -19,6 +19,7 @@ func procFind(_ needle: String, under dir: String? = nil) -> [Int32] {
     return Array(pids.prefix(Int(n)))
 }
 func isRunning(_ needle: String) -> Bool { !procFind(needle).isEmpty }
+func procHasFile(_ pid: Int32, under dir: String) -> Bool { cosmo_proc_has_file_under(pid, dir) == 1 }
 // Whole-process PROC_PIDTASKINFO counters (cumulative) for the fault-loop watchdog.
 func procTaskCounts(_ pid: Int32) -> (faults: UInt64, messagesSent: UInt64)? {
     var f: UInt64 = 0, m: UInt64 = 0

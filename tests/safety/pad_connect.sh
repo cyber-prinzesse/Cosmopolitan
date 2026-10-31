@@ -11,7 +11,9 @@ twine P reg add "$K" /v DisableHidraw /t REG_DWORD /d 0 /f >/dev/null 2>&1; twin
 [[ "$(q DisableHidraw)" == 0x0 && "$(q 'Enable SDL')" == 0x0 ]] || fail "could not switch the bus off for the test"
 out=$(ct --pad-connected P 2>&1 | grep '^Controller')
 [[ "$out" == "Controller test pad connected and switched on for games in P." && "$(q DisableHidraw)" == 0x1 && "$(q 'Enable SDL')" == 0x1 ]] || fail "not switched on: '$out', DisableHidraw $(q DisableHidraw), SDL $(q 'Enable SDL')"
-print -r -- "ok: bus off → '$out' (DisableHidraw 0x1, Enable SDL 0x1)"
+stamp="$(tprefix P)/options/.cosmo-winebus-stamp"
+[[ -f "$stamp" ]] || fail "winebus stamp missing after bus flip (Steam reload would not see a live wineserver as stale)"
+print -r -- "ok: bus off → '$out' (DisableHidraw 0x1, Enable SDL 0x1); stamp $(basename "$stamp")"
 out=$(ct --pad-connected P 2>&1 | grep '^Controller'); [[ "$out" == "Controller test pad connected." ]] || fail "already on, but: '$out'"
 print -r -- "ok: already on → '$out' (nothing changed)"
 # Left alone while a game in DualSense native mode runs (its pad goes through raw HID; the bus isn't switched under it).
