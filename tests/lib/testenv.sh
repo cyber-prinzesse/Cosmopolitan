@@ -5,8 +5,10 @@
 #                   and COSMO_TEST_HOME all point at it, so the app's support folder, bottles and log live there)
 #   tw_snapshot / tw_check   tripwire over YOUR real data: bottles folder, Cosmopolitan log, Steam bottle, running Steam and app
 #                   (content hashes via tests/lib/tw.py; notes and failures name the changed files, and the keys for .reg files)
-#   testenv_cleanup  wineserver -k first, then kills every process whose *executable path* (proc_pidpath) is under this
-#                   run's $T/ (Wine rewrites argv to C:\… so argv matching misses notepad/steam.exe), then removes $T
+#   testenv_cleanup  wineserver -k first, then kills every process that belongs to this run: executable path under $T/
+#                   (proc_pidpath) OR an open file under $T/ (libproc PROC_PIDLISTFDS + PROC_PIDFDVNODEPATHINFO — Cosmos
+#                   may run Wine from a temporary prefix copy outside $T while still holding files in the throwaway).
+#                   Wine rewrites argv to C:\… so argv matching misses notepad/steam.exe. Then removes $T
 #                   (EXIT / INT / TERM — so fail(), Ctrl-C and timeouts cannot leave stand-ins behind)
 # Nothing here writes outside the throwaway folder. The engine and backends are APFS clones (no extra disk space).
 # testenv_init proves the sandbox on your real files every time it runs (see below). Safe under set -u.
@@ -195,38 +197,100 @@ n = libc.proc_pidpath(pid, buf, ctypes.c_uint32(len(buf)))
 if n > 0: print(buf.value.decode(), end="")
 ' "$p" 2>/dev/null
 }
-# PIDs whose *executable path* (proc_pidpath) is under $1/ — this throwaway only.
+# True when pid $1 holds an open vnode under directory $2 (same idea as cosmo_proc_has_file_under).
+_testenv_pid_has_file_under() {
+  emulate -L zsh
+  local p=$1 dir=$2
+  [[ "$p" == <-> && -n "$dir" ]] || return 1
+  python3 -I -c '
+import ctypes, ctypes.util, sys
+PROC_PIDLISTFDS, PROC_PIDFDVNODEPATHINFO, PROX_FDTYPE_VNODE = 1, 2, 1
+VIP_PATH_OFF, VNODE_SIZE = 176, 1200
+pid, directory = int(sys.argv[1]), sys.argv[2].rstrip("/")
+libc = ctypes.CDLL(ctypes.util.find_library("c") or "/usr/lib/libSystem.B.dylib")
+n = libc.proc_pidinfo(pid, PROC_PIDLISTFDS, 0, None, 0)
+if n <= 0: sys.exit(1)
+fds = (ctypes.c_byte * (n + 64))()
+n = libc.proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, len(fds))
+if n <= 0: sys.exit(1)
+vi = (ctypes.c_byte * VNODE_SIZE)()
+for i in range(n // 8):
+    fd = int.from_bytes(bytes(fds[i*8:i*8+4]), "little", signed=True)
+    fdt = int.from_bytes(bytes(fds[i*8+4:i*8+8]), "little", signed=False)
+    if fdt != PROX_FDTYPE_VNODE: continue
+    if libc.proc_pidfdinfo(pid, fd, PROC_PIDFDVNODEPATHINFO, vi, VNODE_SIZE) != VNODE_SIZE: continue
+    path = bytes(vi)[VIP_PATH_OFF:].split(b"\0", 1)[0].decode(errors="replace")
+    if path == directory or path.startswith(directory + "/"):
+        sys.exit(0)
+sys.exit(1)
+' "$p" "$dir" 2>/dev/null
+}
+# True when pid $1 still belongs to throwaway $2 (exe under it, or an open file under it).
+_testenv_pid_belongs_to_T() {
+  emulate -L zsh
+  local p=$1 t=$2 exe
+  [[ "$p" == <-> ]] || return 1
+  _testenv_t_ok "$t" || return 1
+  exe=$(_testenv_pid_exe "$p") || return 1
+  [[ "$exe" == "$t/"* ]] && return 0
+  _testenv_pid_has_file_under "$p" "$t"
+}
+# PIDs that belong to this throwaway: executable under $1/, or an open file under $1/.
 # Wine replaces argv with C:\…\notepad.exe / steam.exe, so argv matching misses every Windows program.
+# Cosmos may exec from a temp prefix copy outside $T while keeping bottle files open under $T/.
 # Empty on any bad input. Does not signal. Never uses broad pgrep -f for selection.
 _testenv_pids_under_T() {
   emulate -L zsh
-  local t="${1:-}" p puid uid exe
+  local t="${1:-}" p puid uid
   local -a out=()
   _testenv_t_ok "$t" || {
     print -u2 "cleanup: refusing to list (bad \$T)"
     return 1
   }
   uid=$(id -u)
-  # One libproc pass: listallpids + proc_pidpath. uid / self checks stay in zsh.
+  # One libproc pass: listallpids + (proc_pidpath under $T/ OR open vnode under $T/). uid / self checks stay in zsh.
   for p in $(python3 -I -c '
 import ctypes, ctypes.util, sys
-t = sys.argv[1].rstrip("/") + "/"
+PROC_PIDLISTFDS, PROC_PIDFDVNODEPATHINFO, PROX_FDTYPE_VNODE = 1, 2, 1
+VIP_PATH_OFF, VNODE_SIZE = 176, 1200
+t = sys.argv[1].rstrip("/")
+prefix = t + "/"
 libc = ctypes.CDLL(ctypes.util.find_library("c") or "/usr/lib/libSystem.B.dylib")
 n = libc.proc_listallpids(None, 0)
 if n <= 0: sys.exit(0)
 pids = (ctypes.c_int * (n + 64))()
 got = libc.proc_listallpids(pids, ctypes.sizeof(pids))
 buf = ctypes.create_string_buffer(4096)
+vi = (ctypes.c_byte * VNODE_SIZE)()
+
+def has_file(pid):
+    nb = libc.proc_pidinfo(pid, PROC_PIDLISTFDS, 0, None, 0)
+    if nb <= 0: return False
+    fds = (ctypes.c_byte * (nb + 64))()
+    nb = libc.proc_pidinfo(pid, PROC_PIDLISTFDS, 0, fds, len(fds))
+    if nb <= 0: return False
+    for i in range(nb // 8):
+        fd = int.from_bytes(bytes(fds[i*8:i*8+4]), "little", signed=True)
+        fdt = int.from_bytes(bytes(fds[i*8+4:i*8+8]), "little", signed=False)
+        if fdt != PROX_FDTYPE_VNODE: continue
+        if libc.proc_pidfdinfo(pid, fd, PROC_PIDFDVNODEPATHINFO, vi, VNODE_SIZE) != VNODE_SIZE: continue
+        path = bytes(vi)[VIP_PATH_OFF:].split(b"\0", 1)[0].decode(errors="replace")
+        if path == t or path.startswith(prefix): return True
+    return False
+
 for i in range(max(got, 0)):
     pid = int(pids[i])
     if pid <= 1: continue
-    if libc.proc_pidpath(pid, buf, ctypes.c_uint32(len(buf))) <= 0: continue
-    if buf.value.decode().startswith(t): print(pid)
+    under = False
+    if libc.proc_pidpath(pid, buf, ctypes.c_uint32(len(buf))) > 0 and buf.value.decode().startswith(prefix):
+        under = True
+    elif has_file(pid):
+        under = True
+    if under: print(pid)
 ' "$t" 2>/dev/null); do
     [[ "$p" == <-> ]] || continue
     _testenv_is_self_or_ancestor "$p" && continue
-    exe=$(_testenv_pid_exe "$p") || continue
-    [[ "$exe" == "$t/"* ]] || continue
+    _testenv_pid_belongs_to_T "$p" "$t" || continue
     puid=$(ps -o uid= -p "$p" 2>/dev/null | tr -d ' ')
     [[ "$puid" == "$uid" ]] || continue
     out+=("$p")
@@ -234,15 +298,14 @@ for i in range(max(got, 0)):
   (( ${#out} )) && print -r -- "${out[@]}"
   return 0
 }
-# Signal only after a fresh proc_pidpath check that the executable is still under $t/.
+# Signal only after a fresh check that the pid still belongs to $t/ (exe or open file).
 _testenv_kill_checked() {
   emulate -L zsh
-  local sig=$1 p=$2 t=$3 exe puid
+  local sig=$1 p=$2 t=$3 puid
   [[ "$p" == <-> && -n "$t" ]] || return 1
   _testenv_t_ok "$t" || return 1
   _testenv_is_self_or_ancestor "$p" && return 1
-  exe=$(_testenv_pid_exe "$p") || return 1
-  [[ "$exe" == "$t/"* ]] || return 1
+  _testenv_pid_belongs_to_T "$p" "$t" || return 1
   puid=$(ps -o uid= -p "$p" 2>/dev/null | tr -d ' ')
   [[ "$puid" == "$(id -u)" ]] || return 1
   kill "-$sig" "$p" 2>/dev/null
@@ -276,7 +339,7 @@ testenv_cleanup() {
     for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
     for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done
   fi
-  # 2) Kill whatever is still running from an executable under $T/ (native stand-ins, leftover Wine loaders, wineserver).
+  # 2) Kill whatever still belongs to this run (exe under $T/, or open file under $T/ — Cosmos temp prefix copies).
   if _testenv_t_ok "$T"; then
     pids=($(_testenv_pids_under_T "$T" 2>/dev/null))
     for p in $pids; do _testenv_kill_checked TERM "$p" "$T"; done
