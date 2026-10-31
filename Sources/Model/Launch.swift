@@ -229,6 +229,8 @@ extension Model {
         log += powerHints()
         // Drop a leftover driver-fallback pin on steam.exe before prepare reads Options: games inherit Steam's env, so DXVK there breaks DX12.
         // Wine's tray hidden (templates set it): Steam's window close has nowhere to minimize to, so the window keeps coming back.
+        // Leftovers of an earlier session in this bottle can hold the controller; lost XInput DLLs hide it from games.
+        log += Model.endStaleWine(bottleOf(exe)); log += Model.restoreXInputDLLs(bottleOf(exe), engine: engineDir)
         if exe.lowercased().hasSuffix("/steam/steam.exe") { clearSteamHostDriverFallback(exe); Model.healSteamSystray(bottleOf(exe)); Model.healSteamDockIcon(bottleOf(exe)) }
         if !engineHasDockPatches() {   // Cosmos does both itself
             log += Model.installNoDockAddon(engineDir)   // engine add-on current before any program starts (Dock icon)
