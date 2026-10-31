@@ -111,9 +111,10 @@ import Network
         let dir = realPath("\(bottlesDir)/\(bottle)")
         // Normal case: steam.exe (or helper) still has cwd inside the bottle.
         if !procFind("Steam\\steam.exe", under: dir).isEmpty { return true }
-        // After cosmo_wineloader Dock naming, steam.exe often relocates cwd to $HOME, so cwd-under-bottle misses it.
-        // Require this bottle's wineserver plus any process whose argv still shows Steam\steam.exe.
-        return prefixServer(dir) != nil && !procFind("Steam\\steam.exe").isEmpty
+        // Its working folder can leave the bottle (seen in $HOME after a Steam self-restart), and then the check above misses it.
+        // Fall back to a steam.exe with a file open inside this bottle (its logs), never just "some steam.exe somewhere": that
+        // made a bottle without Steam look busy while another bottle's Steam ran, and stopSteam would then stop its programs.
+        return prefixServer(dir) != nil && procFind("Steam\\steam.exe").contains { procHasFile($0, under: dir) }
     }
     // Stop this bottle's Steam: ask politely; if it is still up after 20 s (it sometimes ignores -shutdown), stop this bottle's Wine programs
     // (its own wineserver). Never another bottle's Steam: this used to pkill every steam.exe on the Mac.
