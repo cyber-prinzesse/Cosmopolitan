@@ -90,7 +90,7 @@ struct SettingsView: View {
     }
 
     func engineLabel(_ e: String) -> String {
-        e + (e == wine10Engine ? "  (Wine 10, tested)" : engineIsWine11(e) ? "  (Wine 11, beta)" : "")
+        e + (e == wine10Engine ? "  (Wine 10, tested)" : engineHasDockPatches(e) ? "  (Cosmos, Wine 11, beta)" : engineIsWine11(e) ? "  (Wine 11, beta)" : "")
     }
     // Register an engine the user already has (a folder containing wswine.bundle, e.g. a Highball build) by linking it into the app's
     // engines folder, so it appears in the picker. Nothing is downloaded or copied; the bottle upgrade happens only when it's selected.
