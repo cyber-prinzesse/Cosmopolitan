@@ -41,11 +41,13 @@ extension Model {
         // 2. Engine
         let engRoot = "\(support)/engines/\(engine)"
         if !fm.fileExists(atPath: engRoot + "/wswine.bundle/bin/wine") {
-            step("Downloading the Wine engine \(engine) (about 160 MB)…", 0.35)
+            // The Beta installs Cosmos, the regular app the Sikarugir build; nothing else can be downloaded.
+            let pin = isBetaBuild ? Pins.cosmosEngine : Pins.sikarugirEngine
+            step("Downloading the Wine engine \(engine) (about \(isBetaBuild ? 300 : 160) MB)…", 0.35)
             let local = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Engines/\(engine).tar.xz"
-            guard engine == Pins.sikarugirEngine.version else { step("✗ Only the pinned engine \(Pins.sikarugirEngine.version) can be installed; choose it in Settings.", 0); return false }
+            guard engine == pin.version else { step("✗ Only the pinned engine \(pin.version) can be installed; choose it in Settings.", 0); return false }
             // The local copy only if it has the pinned SHA-256; otherwise the pinned download (checked, cached).
-            guard let tarball = sha256File(local) == Pins.sikarugirEngine.sha256 ? local : fetchPinned(Pins.sikarugirEngine, log: { step($0.trimmingCharacters(in: .whitespacesAndNewlines), 0.45) }) else {
+            guard let tarball = sha256File(local) == pin.sha256 ? local : fetchPinned(pin, log: { step($0.trimmingCharacters(in: .whitespacesAndNewlines), 0.45) }) else {
                 step("✗ The engine download failed or didn't match its pinned SHA-256; nothing installed.", 0); return false
             }
             step("Unpacking the engine…", 0.6)
