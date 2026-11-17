@@ -125,6 +125,15 @@ struct ContentView: View {
                         .font(.caption).foregroundStyle(.secondary)
                     Toggle("Metal performance HUD", isOn: $m.hud).disabled(m.selected.isEmpty)
                         .onChange(of: m.hud) { _, v in if !m.loading { m.envSet("MTL_HUD_ENABLED", v ? "1" : nil); m.requestSteamRestart("games started from Steam show the HUD setting") } }
+                    Toggle("Performance mode", isOn: $m.perf).disabled(m.selected.isEmpty)
+                        .help("Unreal Engine games: Lumen lighting and reflections off, lighter shading and foliage, TSR anti-aliasing. Off restores each game's own settings.")
+                        .onChange(of: m.perf) { _, v in if !m.loading { m.envSet("COSMO_PERF", v ? "1" : nil); m.log += m.applyPerformanceMode(v, bottle: m.selected) } }
+                    Toggle("MacBook Air mode", isOn: $m.air).disabled(m.selected.isEmpty)
+                        .help("One switch for an 8 GB MacBook Air: any resolution in fullscreen, Unreal games at 1280x800 with a 75 % render scale, 30 fps and the Air profile, native Visual C++ runtimes. Off restores every game's own settings.")
+                        .onChange(of: m.air) { _, v in if !m.loading { m.envSet("COSMO_AIR", v ? "1" : nil); m.log += m.applyAirMode(v, bottle: m.selected); m.requestSteamRestart("games started from Steam get MacBook Air mode") } }
+                    Toggle("Accelerator (MetalFX upscaling)", isOn: $m.metalFX).disabled(m.selected.isEmpty)
+                        .help("Direct3D 12 (D3DMetal): pick DLSS in the game's menu and it runs as MetalFX upscaling. Direct3D 11 (DXMT): renders at 2/3 resolution and MetalFX-upscales.")
+                        .onChange(of: m.metalFX) { _, v in if !m.loading { m.setAccelerator(v); m.requestSteamRestart("games started from Steam get the Accelerator setting") } }
                     Divider()
                     HStack {
                         Circle().fill(m.driverStatus.0).frame(width: 10, height: 10)
