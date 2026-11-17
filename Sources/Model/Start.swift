@@ -27,6 +27,11 @@ extension Model {
             let pfx = "\(bottlesDir)/\(selected)", run = go, rts = need.runtimes
             go = { self.settingUp.insert(exe); Task.detached { for r in rts { Model.installRuntime(r, prefix: pfx) { s in Task { @MainActor in self.log += s } } }; await MainActor.run { self.settingUp.remove(exe); run() } } }
         }
+        let vcPfx = "\(bottlesDir)/\(selected)", vcRs = Model.vcToAdopt(vcPfx)
+        if !vcRs.isEmpty {   // Microsoft's Visual C++ from another installer (Steam's setup): tell Wine to use it before the game checks for it
+            let run = go
+            go = { Task.detached { Model.adoptVC(vcPfx, vcRs) { s in Task { @MainActor in self.log += s } }; await MainActor.run { run() } } }
+        }
         if need.needsDotNet {   // .NET program in a bottle where .NET isn't verified: probe, install Wine Mono if needed, then start
             let pfx = "\(bottlesDir)/\(selected)", run = go
             go = { self.settingUp.insert(exe); Task.detached { _ = Model.ensureDotNet(pfx) { s in Task { @MainActor in self.log += s } }; await MainActor.run { self.settingUp.remove(exe); self.readiness[exe] = self.launchNeeds(exe); run() } } }
