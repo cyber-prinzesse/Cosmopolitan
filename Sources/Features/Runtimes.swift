@@ -55,6 +55,40 @@ extension Model {
         return head.count >= 128 && head.range(of: Data("Wine builtin DLL".utf8)) == nil
     }
 
+    // Visual C++ installed by someone else (Steam's first-time setup runs the game's _CommonRedist vc_redist, a game's own installer):
+    // Microsoft's DLLs are in the bottle, but Wine keeps loading its builtin stand-ins until DllOverrides says native,builtin, and games
+    // that check the runtime's version (Unreal's launcher: "Microsoft Visual C++ 2015-2022 Redistributable (x64) required") fail.
+    // Returns the bitnesses that still need the overrides; cheap (a stat and a 256-byte read each), so the 5 s Steam watch can ask.
+    nonisolated static func vcToAdopt(_ prefix: String) -> [Runtime] {
+        [(Runtime.vcredist64, "system32"), (.vcredist86, "syswow64")].compactMap { r, dir in
+            let fm = FileManager.default
+            guard !fm.fileExists(atPath: prefix + "/.vc-overrides-" + r.rawValue), !fm.fileExists(atPath: runtimeMarker(prefix, r)),
+                  isMicrosoftDLL("\(prefix)/drive_c/windows/\(dir)/msvcp140.dll") else { return nil }
+            return r
+        }
+    }
+    // Writes the overrides installRuntime writes after its own install. Blocking (wine reg): call off the main actor.
+    nonisolated static func adoptVC(_ prefix: String, _ rs: [Runtime], log: @escaping (String) -> Void) {
+        let bottle = (prefix as NSString).lastPathComponent
+        for r in rs {
+            for d in vcRedistDLLs where d != "vcruntime140_1" || r == .vcredist64 {
+                regSet(bottle, "HKCU\\Software\\Wine\\DllOverrides", d, "native,builtin", exe: "", owner: "bottle")
+            }
+            FileManager.default.createFile(atPath: prefix + "/.vc-overrides-" + r.rawValue, contents: nil)
+            log("Visual C++ (\(r == .vcredist64 ? "64" : "32")-bit) in bottle \(bottle) was installed by another installer (Steam's setup): games now use Microsoft's DLLs.\n")
+        }
+    }
+
+    // Every bottle, from the 5 s Steam watch: Steam installs a game's Visual C++ while the game starts, outside Cosmopolitan's launch path.
+    func adoptVCTick() {
+        for b in bottles where !vcAdopting.contains(b) {
+            let pfx = "\(bottlesDir)/\(b)", rs = Model.vcToAdopt(pfx)
+            guard !rs.isEmpty else { continue }
+            vcAdopting.insert(b)
+            Task.detached { Model.adoptVC(pfx, rs) { s in Task { @MainActor in self.log += s; logToFile(s) } }; await MainActor.run { _ = self.vcAdopting.remove(b) } }
+        }
+    }
+
     // Installs the pinned runtime into the bottle. Blocking: call off the main actor.
     @discardableResult nonisolated static func installRuntime(_ r: Runtime, prefix: String, log: @escaping (String) -> Void) -> Bool {
         let fm = FileManager.default
