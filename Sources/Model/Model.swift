@@ -15,6 +15,8 @@ import Network
     var launchOutputToLog = false            // CLI --wait: program output goes to the log file, not a pipe, so it survives the CLI exiting
     var icons: [String: NSImage] = [:]
     @Published var hud = false       // MTL_HUD_ENABLED (Metal performance overlay)
+    @Published var perf = false      // COSMO_PERF: Performance mode (PerformanceMode.swift)
+    @Published var air = false       // COSMO_AIR: MacBook Air mode (PerformanceMode.swift)
     @Published var retina = false    // Wine Mac Driver RetinaMode
     @Published var drivers: Set<String> = []   // enabled renderer folders (DRIVERS= in cosmopolitan.env)
     @Published var autoDrivers = true          // DRIVERS absent or "auto"
@@ -304,6 +306,10 @@ import Network
         loading = true
         let e = launchEnvRaw()
         hud = e["MTL_HUD_ENABLED"] == "1"
+        perf = e["COSMO_PERF"] == "1"
+        if perf { log += applyPerformanceMode(true, bottle: selected) }   // games installed or reset since last time
+        air = e["COSMO_AIR"] == "1"
+        if air { log += applyAirMode(true, bottle: selected) }
         autostartSteam = e["AUTOSTART_STEAM"] == "1"
         batterySaver = e["D3DM_MAX_FPS"] != nil
         metalFX = e["D3DM_ENABLE_METALFX"] == "1"

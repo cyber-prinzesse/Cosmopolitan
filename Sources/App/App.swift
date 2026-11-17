@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--steam-watch-tick", "--stale-wine", "--restore-xinput", "--steamloop", "--faultloop", "--memcheck", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--steam-exit-sync", "--steam-launch-sync", "--steam-idle", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--backup-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--bugreport-url", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine", "--nodock-engine", "--loader-name", "--preview-preparing"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--perfcheck", "--toggles-selftest", "--steam-watch-tick", "--stale-wine", "--restore-xinput", "--steamloop", "--faultloop", "--memcheck", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--steam-exit-sync", "--steam-launch-sync", "--steam-idle", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--backup-shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--sync-launchers", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--bugreport-url", "--health", "--health-fix", "--cleanup-suggestions", "--prepare-engine", "--nodock-engine", "--loader-name", "--preview-preparing"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { _ = logFile; return }   // the window app's fresh log begins at its start, not at its first write
         cliMode = true
         let m = Model()
@@ -22,7 +22,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
             let folder = (i + 2 < a.count && !a[i + 2].hasPrefix("-") && !FileManager.default.fileExists(atPath: "\(bottlesDir)/\(a[i + 2])/drive_c")) ? a[i + 2]
                 : (i + 3 < a.count ? a[i + 3] : nil)
             m.findApps(extraFolder: folder)
-        case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
+        case "--update": if a.contains("--install") { m.log += m.preferNewestD3DMetal() }; m.log += m.newerGPTKHint() + Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
         case "--steam-exit-sync":   // Steam was up → now gone via the background watch path (COSMO_TEST_STEAM_EXIT_DELAY; COSMO_TEST_APP_INACTIVE=1 = app not frontmost)
             m.log += "status polling active: \(m.statusPollingActive)\n"
@@ -53,6 +53,13 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
         case "--offline": m.offlineCheck()
         case "--shaders": m.shaderCacheReport()
         case "--backup-shaders": m.backupBottleShaders(wait: true)
+        case "--perfcheck":   // self-check of Performance mode's caps
+            let t = Model.perfTuned("sg.ResolutionQuality=50\nsg.AntiAliasingQuality=0\nsg.GlobalIlluminationQuality=3\nsg.ShadingQuality=1\nFoo=3")
+            m.log += t == "sg.ResolutionQuality=50\nsg.AntiAliasingQuality=2\nsg.GlobalIlluminationQuality=1\nsg.ShadingQuality=1\nFoo=3" ? "perfcheck ok\n" : "perfcheck FAIL:\n\(t)\n"
+            let ac = Model.airTuned("sg.TextureQuality=3\r\nFullscreenMode=1\r\nGamma=1.7")
+            m.log += ac == "sg.TextureQuality=1\r\nFullscreenMode=0\r\nGamma=1.7" ? "aircheck ok\n" : "aircheck FAIL:\n\(ac)\n"
+        case "--toggles-selftest":   // --toggles-selftest <bottle>: each toggle on, checked, off, checked; run it on a clone, never a real bottle
+            if i + 1 < a.count { m.selected = a[i + 1]; m.log += m.togglesSelfTest() }
         case "--hudocr": if i + 2 < a.count { m.log += "fps read from image: \(Model.hudFPS(in: a[i + 2]).map { String($0) } ?? "none")\n" }
         case "--saves": if i + 2 < a.count { m.log += "save folders: \(m.saveFolders(a[i + 2]))\n" }
         case "--mods": if i + 2 < a.count { m.log += "\(m.mods(a[i + 2]))\n" }
