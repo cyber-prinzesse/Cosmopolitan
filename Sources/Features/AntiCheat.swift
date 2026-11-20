@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(CosmoNative)
+import CosmoNative   // swift build: the C++ module is a package target (scripts/build.sh uses the bridging header)
+#endif
 
 extension Model {
     // Anti-cheat detection. Signatures checked against real installs (Dawnwalker ships EOSSDK without EAC — EOS alone is NOT anti-cheat).

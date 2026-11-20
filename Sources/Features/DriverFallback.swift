@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(CosmoNative)
+import CosmoNative   // swift build: the C++ module is a package target (scripts/build.sh uses the bridging header)
+#endif
 
 // Item 27: a game that crashes within 30 s gets one retry with the next driver (DXMT → D3DMetal → DXVK → vkd3d-proton), chosen by the decision engine's
 // row 12 (cosmo_fallback, C++). The working driver is remembered in the game's Options (a DRIVERS= line marked as the fallback's) and goes

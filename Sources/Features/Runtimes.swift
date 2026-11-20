@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CosmoNative)
+import CosmoNative   // swift build: the C++ module is a package target (scripts/build.sh uses the bridging header)
+#endif
 
 // Microsoft runtimes in a bottle: the pinned installers from Microsoft (Components.swift), run with their own silent switches. Used when a
 // program imports a DLL that only these runtimes provide, and for the community-fix verbs that name them (instead of winetricks).
