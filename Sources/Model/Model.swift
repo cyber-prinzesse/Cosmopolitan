@@ -388,7 +388,7 @@ import Network
                 String((acf.components(separatedBy: "\"\(k)\"").dropFirst().first?.components(separatedBy: "\"").dropFirst().first ?? "").unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7f })
             }
             let id = val("appid"), dir = "\(lib)/common/\(val("installdir"))"
-            guard id != "228980", isSteamAppID(id), !val("installdir").contains("/"), val("installdir") != ".." else { continue }   // Steamworks Common Redistributables; a non-numeric appid is not Steam's (SEC-001)
+            guard id != "228980", isSteamAppID(id), !["", ".", ".."].contains(val("installdir")), !val("installdir").contains("/") else { continue }   // Steamworks Common Redistributables; a non-numeric appid is not Steam's (SEC-001)
             // Biggest real exe: top level first; Unreal games keep it in <Game>/Binaries/Win64 with nothing at the top, so fall back to a 4-deep walk.
             func exes(_ depth: Int) -> [String] {
                 guard let en = FileManager.default.enumerator(atPath: dir) else { return [] }

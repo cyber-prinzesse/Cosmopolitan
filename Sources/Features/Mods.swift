@@ -14,6 +14,7 @@ extension Model {
     func addMod(_ exe: String, from picked: String) {
         let name = ((picked as NSString).lastPathComponent as NSString).deletingPathExtension, dst = "\(modsDir(exe))/\(name)"
         guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/") else { log += "Mod add refused: \"\(name)\" is not a usable folder name.\n"; return }
+        guard !FileManager.default.fileExists(atPath: dst + "/.enabled") else { log += "Mod add refused: \(name) is enabled; disable it first (its backup holds the game's originals).\n"; return }
         if picked.lowercased().hasSuffix(".zip") {   // zip-slip: an entry that is absolute or climbs out with ".." is never extracted
             let list = runTool("/usr/bin/zipinfo", ["-1", picked])
             let bad = list.out.split(separator: "\n").first { $0.hasPrefix("/") || $0.split(separator: "/").contains("..") || $0.split(separator: "\\").contains("..") }
@@ -36,24 +37,31 @@ extension Model {
             try? fm.createDirectory(atPath: (to as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             return runTool("/bin/cp", ["-p", from, to]).status == 0
         }
-        let files = sh("cd \(shq("\(mod)")) && find . -type f ! -path './.backup/*' ! -name '.enabled' ! -name '.DS_Store' | sed 's|^\\./||'").split(separator: "\n").map(String.init)
+        let files = sh("cd \(shq("\(mod)")) && find . -type f ! -path './.backup/*' ! -name '.enabled' ! -name '.installed' ! -name '.DS_Store' | sed 's|^\\./||'").split(separator: "\n").map(String.init)
         if enabled {
+            guard !fm.fileExists(atPath: mod + "/.enabled") else { log += "Mod already enabled: \(name).\n"; return true }   // a 2nd enable would back the mod's own files up over the originals
             snapshot("before enabling mod \(name)")
+            var installed: [String] = []
             for f in files {
                 let target = "\(root)/\(f)"
-                if fm.fileExists(atPath: target), !copy(target, "\(backup)/\(f)") { failed.append(f); continue }   // no backup: original left alone
+                if fm.fileExists(atPath: target), !copy(target, "\(backup)/\(f)") {   // no complete backup: original left alone, partial copy dropped
+                    try? fm.removeItem(atPath: "\(backup)/\(f)"); failed.append(f); continue
+                }
+                installed.append(f)   // from here on disable owns this file (restore it, or delete it if the game had none)
                 if !copy("\(mod)/\(f)", target) { failed.append(f) }
             }
+            try? installed.joined(separator: "\n").write(toFile: mod + "/.installed", atomically: true, encoding: .utf8)
             fm.createFile(atPath: mod + "/.enabled", contents: nil)
             log += failed.isEmpty ? "Mod enabled: \(name) (\(files.count) files; originals backed up).\n"
                                   : "Mod enabled with problems: \(name) — \(failed.count) of \(files.count) files not installed (\(failed.prefix(3).joined(separator: ", "))); originals untouched for those.\n"
         } else {
-            for f in files {
+            let list = (try? String(contentsOfFile: mod + "/.installed", encoding: .utf8)).map { $0.split(separator: "\n").map(String.init) }
+            for f in list ?? files {
                 let target = "\(root)/\(f)"
                 if fm.fileExists(atPath: "\(backup)/\(f)") { if !copy("\(backup)/\(f)", target) { failed.append(f) } } else { try? fm.removeItem(atPath: target) }
             }
             if failed.isEmpty {
-                try? fm.removeItem(atPath: backup); try? fm.removeItem(atPath: mod + "/.enabled")
+                try? fm.removeItem(atPath: backup); try? fm.removeItem(atPath: mod + "/.enabled"); try? fm.removeItem(atPath: mod + "/.installed")
                 log += "Mod disabled: \(name) (originals restored).\n"
             } else {   // the backup is the only copy of these originals: keep it, and keep the mod marked enabled so a retry restores them
                 log += "Mod disable incomplete: \(name) — \(failed.count) original\(failed.count == 1 ? "" : "s") could not be restored (\(failed.prefix(3).joined(separator: ", "))); kept in mods/\(name)/.backup. Free some space and try again.\n"

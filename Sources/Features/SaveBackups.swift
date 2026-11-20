@@ -69,7 +69,8 @@ extension Model {
             var gt = glob_t(); defer { globfree(&gt) }
             if glob(p, 0, nil, &gt) == 0 { for i in 0..<Int(gt.gl_matchc) { if let s = gt.gl_pathv[i] { out.append(String(cString: s)) } } }
         }
-        return Array(Set(out)).filter { ($0 as NSString).standardizingPath.hasPrefix((c as NSString).standardizingPath + "/") }.sorted()   // a manifest rule like "/" stays out
+        let roots = ([c] + (base.split(separator: "/").count >= 3 ? [base] : [])).map { ($0 as NSString).standardizingPath + "/" }
+        return Array(Set(out)).filter { p in roots.contains { (p as NSString).standardizingPath.hasPrefix($0) } }.sorted()   // a manifest rule like "/" stays out
     }
     // Clones the save paths into support/save-backups/<game>/<stamp> <reason>/ (paths under drive_c kept); keeps the newest 5 per game.
     @discardableResult func backupSaves(_ exe: String, _ reason: String) -> String {

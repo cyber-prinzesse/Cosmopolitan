@@ -26,7 +26,7 @@ final class ReplayRecorder {
     func stop() { running = false; _ = shell("pkill -INT -f 'screencapture -v' 2>/dev/null"); hotkeys.forEach { if let h = $0 { UnregisterEventHotKey(h) } }; hotkeys = [] }
     func saveClip() -> String {
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        _ = shell("pkill -INT -f 'screencapture -v' 2>/dev/null; sleep 1; n=0; for f in $(ls -t \(shq("\(dir)"))/seg*.mov 2>/dev/null | head -2); do n=$((n+1)); cp \"$f\" \(shq("\(gallery)/\(stamp)-part"))\"$n\".mov; done")
+        _ = shell("pkill -INT -f 'screencapture -v' 2>/dev/null; sleep 1; n=0; for f in $(ls -t \(shq("\(dir)"))/seg*.mov 2>/dev/null | tail -n +2 | head -2); do n=$((n+1)); cp \"$f\" \(shq("\(gallery)/\(stamp)-part"))\"$n\".mov; done")
         return "Replay saved: \(gallery)/\(stamp)-part*.mov\n"
     }
     func screenshot() -> String {
