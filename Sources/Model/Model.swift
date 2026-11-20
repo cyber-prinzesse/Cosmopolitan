@@ -335,7 +335,7 @@ import Network
         var e: [String: String] = [:]
         for l in ((try? String(contentsOfFile: "\(bottlesDir)/\(bottle ?? selected)/cosmopolitan.env", encoding: .utf8)) ?? "").components(separatedBy: "\n") {
             let kv = l.split(separator: "=", maxSplits: 1).map(String.init)
-            if kv.count == 2 { e[kv[0]] = kv[1] }
+            if kv.count == 2, kv[0].range(of: "^[A-Za-z_][A-Za-z0-9_]*$", options: .regularExpression) != nil { e[kv[0]] = kv[1] }
         }
         return e
     }
@@ -384,9 +384,11 @@ import Network
         let lib = "\(c)/Program Files (x86)/Steam/steamapps"
         for f in (try? FileManager.default.contentsOfDirectory(atPath: lib)) ?? [] where f.hasPrefix("appmanifest_") {
             guard let acf = try? String(contentsOfFile: "\(lib)/\(f)", encoding: .utf8) else { continue }
-            func val(_ k: String) -> String { acf.components(separatedBy: "\"\(k)\"").dropFirst().first?.components(separatedBy: "\"").dropFirst().first ?? "" }
+            func val(_ k: String) -> String {   // control characters (a newline in "name") never leave the parser
+                String((acf.components(separatedBy: "\"\(k)\"").dropFirst().first?.components(separatedBy: "\"").dropFirst().first ?? "").unicodeScalars.filter { $0.value >= 0x20 && $0.value != 0x7f })
+            }
             let id = val("appid"), dir = "\(lib)/common/\(val("installdir"))"
-            guard id != "228980", isSteamAppID(id) else { continue }   // Steamworks Common Redistributables; a non-numeric appid is not Steam's (SEC-001)
+            guard id != "228980", isSteamAppID(id), !val("installdir").contains("/"), val("installdir") != ".." else { continue }   // Steamworks Common Redistributables; a non-numeric appid is not Steam's (SEC-001)
             // Biggest real exe: top level first; Unreal games keep it in <Game>/Binaries/Win64 with nothing at the top, so fall back to a 4-deep walk.
             func exes(_ depth: Int) -> [String] {
                 guard let en = FileManager.default.enumerator(atPath: dir) else { return [] }
