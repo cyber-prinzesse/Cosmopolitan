@@ -1,0 +1,32 @@
+Cosmopolitan — Proprietary Software License
+
+Copyright (c) 2026 Andrii Rozhanskyi. All rights reserved.
+
+Cosmopolitan (the application, its source code, build scripts, documentation, artwork and any other
+material in this repository or distributed with the application, together "the Software") is
+proprietary. It is licensed, not sold.
+
+1. Use. You may download the released application from the official release page and use it on
+   computers you own or control, subject to the Terms of Use (TERMS.txt). No other right is granted.
+
+2. Restrictions. You may not, in whole or in part: copy, modify, translate or create derivative works
+   of the Software; distribute, publish, sublicense, rent, lend, sell or otherwise make it available
+   to others; decompile, disassemble or reverse engineer it, except to the extent applicable law
+   expressly permits this despite this restriction; or remove any notice of ownership.
+
+3. Source code. The source code is not public and is not licensed to anyone. Any copy of the source
+   code, including copies made while it was publicly visible, grants no right to use, copy, modify
+   or distribute it.
+
+4. Third-party components. Components made by others keep their own licenses, listed in
+   THIRD_PARTY_NOTICES.md. Nothing in this license limits the rights those licenses give you
+   (for example under the LGPL for Wine and the Cosmos engine, whose source is published with
+   each engine release).
+
+5. No warranty. The Software is provided "as is", without warranty of any kind, express or implied,
+   including merchantability, fitness for a particular purpose and non-infringement. In no event
+   shall the author be liable for any claim, damages or other liability arising from the Software
+   or its use.
+
+6. Termination. This license ends automatically if you break it; you must then stop using and
+   delete the Software.

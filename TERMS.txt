@@ -1,0 +1,72 @@
+Cosmopolitan — Terms of Use and Notices
+Version 1.0 — 2026-10-22
+
+Please read these terms. By clicking "Accept" you confirm that you have read
+and agree to them. If you do not agree, click "Quit" and do not use Cosmopolitan.
+
+1. Free software
+   Cosmopolitan is free software, distributed under the license in the LICENSE
+   file. These terms are a notice to users. They do not restrict or take away
+   any rights you have under that license.
+
+2. No warranty
+   Cosmopolitan is provided "as is", without any warranty, to the extent
+   permitted by applicable law. Running Windows software on macOS through Wine
+   and translation layers is experimental. Games may not start, may crash, may
+   run slowly, or may behave differently than on Windows. Back up your save
+   files and important data before use.
+
+3. Your games
+   Cosmopolitan does not include any games. Use it only with games and software
+   you are legally allowed to use. Cosmopolitan does not support or assist
+   piracy or circumvention of copy protection.
+
+4. Third-party components
+   Cosmopolitan uses third-party software (for example Wine, DXMT, DXVK, MoltenVK
+   and Winetricks), each under its own license. See THIRD_PARTY_NOTICES.md for
+   the full list, licenses and source code links.
+
+5. Apple D3DMetal (Game Porting Toolkit)
+   Cosmopolitan does not include Apple's D3DMetal. If you choose to use it, you
+   download Apple's Game Porting Toolkit yourself and must separately accept
+   Apple's license, which Cosmopolitan shows before enabling D3DMetal. Apple's
+   license limits use to non-commercial purposes. You are responsible for
+   complying with it.
+
+6. Online games and anti-cheat
+   Many online games use anti-cheat software that does not work under Wine.
+   Cosmopolitan never bypasses, disables or modifies anti-cheat software.
+   Running a game through Cosmopolitan may still violate a game's or store's
+   terms of service, and in rare cases could lead to account restrictions or
+   bans. You are responsible for following the terms of the games and stores
+   you use. Test with care before playing online on an important account.
+
+7. Privacy
+   Cosmopolitan does not collect personal data. Compatibility reports are
+   strictly opt-in. If you turn them on, only anonymous technical data is sent
+   (Mac model/chip, macOS version, graphics backend, average frame rate, and
+   whether the game crashed). You can turn reports off at any time in
+   Settings. Bug reports are only sent when you choose to submit them, with
+   usernames and home-folder paths removed.
+
+8. Files on your Mac
+   By default, games can only access their own folders, not your personal
+   files. If you widen a game's access, you do so at your own risk. Windows
+   programs from untrusted sources can contain malware that can affect files
+   they are allowed to access.
+
+9. No affiliation
+   Cosmopolitan is an independent project. It is not affiliated with, endorsed
+   by or sponsored by Apple, Microsoft, Valve, Epic Games, CodeWeavers, GOG or
+   any game publisher. All trademarks belong to their respective owners.
+
+10. Updates to these terms
+    If these terms change, Cosmopolitan will show them again and ask you to
+    accept the new version before continuing.
+
+11. Liability
+    To the extent permitted by applicable law, the authors are not liable for
+    any damage resulting from the use of Cosmopolitan, including loss of data,
+    save files or game accounts. Nothing in these terms limits liability that
+    cannot be limited under applicable law.
+
