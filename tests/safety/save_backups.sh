@@ -41,7 +41,7 @@ print 'int main(void){return 0;}' > "$T/g.c"; x86_64-w64-mingw32-gcc -O2 -s "$T/
 manifest() { printf '"AppState"\n{\n\t"appid"\t\t"555"\n\t"name"\t\t"Test Quest"\n\t"StateFlags"\t\t"%s"\n\t"installdir"\t\t"TestQuest"\n\t"TargetBuildID"\t\t"%s"\n}\n' $1 $2 > "$ST/appmanifest_555.acf"; }
 manifest 4 100
 U=$(ls "$C/users" | grep -v Public | head -1); mkdir -p "$C/users/$U/AppData/Roaming/TestQuest" "$C/users/$U/.config/testquest"
-print one > "$C/users/$U/AppData/Roaming/TestQuest/save1.dat"; print two > "$C/users/$U/AppData/Roaming/TestQuest/save2.dat"
+print one > "$C/users/$U/AppData/Roaming/TestQuest/save1.dat"; print two > "$C/users/$U/AppData/Roaming/TestQuest/save2.dat"; print three > "$C/users/$U/AppData/Roaming/TestQuest/save'3.dat"
 print no > "$C/users/$U/AppData/Roaming/TestQuest/settings.txt"; print linux > "$C/users/$U/.config/testquest/x"; print slot > "$ST/common/TestQuest/Saves/slot1.sav"
 EXE="$ST/common/TestQuest/TestQuest.exe"
 paths=$(ct --save-paths Q "$EXE" 2>&1 | grep '^save ')
@@ -50,7 +50,7 @@ paths=$(ct --save-paths Q "$EXE" 2>&1 | grep '^save ')
 print -r -- "ok: $(print -r -- "$paths" | grep -c '^save path') save paths for Test Quest (app 555); settings.txt and the Linux-only path left out"
 B="$TS/save-backups/Test Quest"
 ct --backup-saves Q "$EXE" >/dev/null 2>&1; d=$(ls "$B" | tail -1)
-[[ -f "$B/$d/users/$U/AppData/Roaming/TestQuest/save1.dat" && -f "$B/$d/Program Files (x86)/Steam/steamapps/common/TestQuest/Saves/slot1.sav" && ! -e "$B/$d/users/$U/AppData/Roaming/TestQuest/settings.txt" ]] || fail "backup content: $(cd "$B/$d" && find . -type f | tr '\n' ' ')"
+[[ -f "$B/$d/users/$U/AppData/Roaming/TestQuest/save1.dat" && -f "$B/$d/users/$U/AppData/Roaming/TestQuest/save'3.dat" && -f "$B/$d/Program Files (x86)/Steam/steamapps/common/TestQuest/Saves/slot1.sav" && ! -e "$B/$d/users/$U/AppData/Roaming/TestQuest/settings.txt" ]] || fail "backup content: $(cd "$B/$d" && find . -type f | tr '\n' ' ')"
 print -r -- "ok: backup '$d' holds $(cd "$B/$d" && find . -type f | wc -l | tr -d ' ') files: $(cd "$B/$d" && find . -type f | sed 's|.*/||' | sort | tr '\n' ' ')"
 ct --repair Q >/dev/null 2>&1; ls "$B" | grep -q ' before Repair$' || fail "no backup before Repair: $(ls "$B")"
 print "ok: Repair backed the saves up first ($(ls "$B" | grep 'before Repair'))"

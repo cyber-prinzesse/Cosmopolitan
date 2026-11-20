@@ -7,7 +7,7 @@ import Foundation
 func cleanUp(bottles: [String]) -> String {
     let fm = FileManager.default
     func age(_ p: String) -> TimeInterval { Date().timeIntervalSince((try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date ?? Date()) }
-    func size(_ p: String) -> Int64 { Int64(shell("du -sk '\(p.replacingOccurrences(of: "'", with: "'\\''"))' 2>/dev/null | cut -f1").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0 }
+    func size(_ p: String) -> Int64 { Int64(shell("du -sk \(shq(p)) 2>/dev/null | cut -f1").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0 }
     var freedKB: Int64 = 0, lines: [String] = []
     func remove(_ p: String, _ what: String? = nil) {
         guard fm.fileExists(atPath: p) else { return }

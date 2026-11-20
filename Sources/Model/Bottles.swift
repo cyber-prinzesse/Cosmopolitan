@@ -5,7 +5,7 @@ extension Model {
     // version before anything was installed in it (seconds instead of a minute). A new engine version gets a fresh template, and older ones go.
     nonisolated static var templatesDir: String { support + "/templates" }
     nonisolated static func templateKey(_ winver: String) -> String {
-        let v = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_ENGINE_VERSION"] : nil) ?? shell("'\(wineBin)' --version 2>/dev/null").trimmingCharacters(in: .whitespacesAndNewlines)
+        let v = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_ENGINE_VERSION"] : nil) ?? shell("\(shq("\(wineBin)")) --version 2>/dev/null").trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(engineName) \(v) \(winver)".replacingOccurrences(of: "/", with: "-")
     }
     func saveTemplate(_ name: String, _ key: String) {
@@ -36,7 +36,7 @@ extension Model {
                     let pfx = "\(bottlesDir)/\(name)"   // .NET: Wine Mono from WineHQ (pinned), verified by running the probe program
                     Task.detached { _ = Model.installWineMono(pfx) { s in Task { @MainActor in self.log += s } }
                         // Wine writes the registry to disk when the bottle's wineserver exits: wait for that (at most 30 s) before it can become the template.
-                        _ = shell("env WINEPREFIX='\(pfx)' perl -e 'alarm 30; exec @ARGV' -- '\((wineBin as NSString).deletingLastPathComponent)/wineserver' -w 2>/dev/null; true")
+                        _ = shell("env WINEPREFIX=\(shq("\(pfx)")) perl -e 'alarm 30; exec @ARGV' -- \(shq("\((wineBin as NSString).deletingLastPathComponent)/wineserver")) -w 2>/dev/null; true")
                         await MainActor.run { self.saveTemplate(name, key); then?() } } } } }
     }
 

@@ -129,7 +129,7 @@ struct ContentView: View {
                         .help("Unreal Engine games: Lumen lighting and reflections off, lighter shading and foliage, TSR anti-aliasing. Off restores each game's own settings.")
                         .onChange(of: m.perf) { _, v in if !m.loading { m.envSet("COSMO_PERF", v ? "1" : nil); m.log += m.applyPerformanceMode(v, bottle: m.selected) } }
                     Toggle("MacBook Air mode", isOn: $m.air).disabled(m.selected.isEmpty)
-                        .help("One switch for an 8 GB MacBook Air: any resolution in fullscreen, Unreal games at 1280x800 with a 75 % render scale, 30 fps and the Air profile, native Visual C++ runtimes. Off restores every game's own settings.")
+                        .help("One switch for an 8 GB MacBook Air: while a Steam game runs, it sees a 1280x800 screen and renders a fifth of the pixels (Wine scales it up), 30 fps cap; Unreal games also get the Air profile; native Visual C++ runtimes. Off restores everything.")
                         .onChange(of: m.air) { _, v in if !m.loading { m.envSet("COSMO_AIR", v ? "1" : nil); m.log += m.applyAirMode(v, bottle: m.selected); m.requestSteamRestart("games started from Steam get MacBook Air mode") } }
                     Toggle("Accelerator (MetalFX upscaling)", isOn: $m.metalFX).disabled(m.selected.isEmpty)
                         .help("Direct3D 12 (D3DMetal): pick DLSS in the game's menu and it runs as MetalFX upscaling. Direct3D 11 (DXMT): renders at 2/3 resolution and MetalFX-upscales.")

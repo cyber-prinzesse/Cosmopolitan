@@ -60,15 +60,15 @@ extension Model {
     @discardableResult func installD3DMetal(from picked: String, confirmed: Bool = false) -> Bool {
         var root = picked, mount = ""
         // Already open in Finder (double-clicked): a second attach fails "Resource busy", so use that mount and leave it attached.
-        let open = picked.lowercased().hasSuffix(".dmg") ? sh("hdiutil info | awk -F'\\t' -v img='\(picked)' 'index($0,\"image-path\")==1{hit=(substr($0,index($0,\": \")+2)==img)} /^=+$/{hit=0} hit&&$3~/^\\/Volumes\\//{print $3; exit}'").trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let open = picked.lowercased().hasSuffix(".dmg") ? sh("hdiutil info | awk -F'\\t' -v img=\(shq("\(picked)")) 'index($0,\"image-path\")==1{hit=(substr($0,index($0,\": \")+2)==img)} /^=+$/{hit=0} hit&&$3~/^\\/Volumes\\//{print $3; exit}'").trimmingCharacters(in: .whitespacesAndNewlines) : ""
         if !open.isEmpty { root = open }
         else if picked.lowercased().hasSuffix(".dmg") {
             mount = NSTemporaryDirectory() + "cosmo-gptk-\(ProcessInfo.processInfo.processIdentifier)"
-            let r = sh("mkdir -p '\(mount)' && hdiutil attach -nobrowse -readonly -noverify -mountpoint '\(mount)' '\(picked)' 2>&1 | tail -1")
+            let r = sh("mkdir -p \(shq("\(mount)")) && hdiutil attach -nobrowse -readonly -noverify -mountpoint \(shq("\(mount)")) \(shq("\(picked)")) 2>&1 | tail -1")
             guard FileManager.default.fileExists(atPath: mount), !r.contains("failed") else { log += "D3DMetal: could not mount \(picked): \(r)\n"; return false }
             root = mount
         }
-        defer { if !mount.isEmpty { _ = sh("hdiutil detach '\(mount)' -quiet; rmdir '\(mount)' 2>/dev/null") } }
+        defer { if !mount.isEmpty { _ = sh("hdiutil detach \(shq("\(mount)")) -quiet; rmdir \(shq("\(mount)")) 2>/dev/null") } }
         // Find external/D3DMetal.framework and the sibling wine/ folder; Apple's License and Read Me sit at the image root.
         guard let en = FileManager.default.enumerator(atPath: root) else { return false }
         var ext = "", lic: [String] = []
@@ -95,8 +95,8 @@ extension Model {
             }
         }
         if let b = backUpD3DMetal() { log += "D3DMetal: previous version kept at \(b)\n" }   // always, upgrades too; never deleted
-        _ = sh("mkdir -p '\(dst)' && cp -R '\(ext)' '\(dst)/external' && cp -R '\(lib)/wine' '\(dst)/wine'")   // copied as-is, never modified
-        for f in lic { _ = sh("cp '\(f)' '\(dst)/' 2>/dev/null") }
+        _ = sh("mkdir -p \(shq("\(dst)")) && cp -R \(shq("\(ext)")) \(shq("\(dst)/external")) && cp -R \(shq("\(lib)/wine")) \(shq("\(dst)/wine"))")   // copied as-is, never modified
+        for f in lic { _ = sh("cp \(shq("\(f)")) \(shq("\(dst)/")) 2>/dev/null") }
         d3dmetalOK = false; try? FileManager.default.removeItem(atPath: d3dmetalAcceptFile)
         let ok = d3dmetalInstalled()
         log += ok ? "D3DMetal \(incoming?.pretty ?? "") installed from \(incoming?.source ?? picked). Read and accept Apple's license to enable it.\n" : "D3DMetal: copy incomplete (need lib/external, lib/wine and the License file); nothing enabled.\n"

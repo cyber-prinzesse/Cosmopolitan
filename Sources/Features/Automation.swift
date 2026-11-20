@@ -15,8 +15,8 @@ extension Model {
     // §9.8 Focus automation: Options FOCUS_SHORTCUT=<Shortcut name> runs that Shortcut when the game starts and again when it exits (make it a toggle).
     func focusAutomation(_ exe: String) {
         guard let s = options(exe)["FOCUS_SHORTCUT"], !s.isEmpty else { return }
-        _ = sh("shortcuts run '\(s)' >/dev/null 2>&1 &"); log += "Focus: ran Shortcut “\(s)”; runs again when \(appName(exe)) exits.\n"
-        whenExits(exe) { _ = self.sh("shortcuts run '\(s)' >/dev/null 2>&1 &"); self.log += "Focus: ran Shortcut “\(s)” (game exited).\n" }
+        _ = sh("shortcuts run \(shq("\(s)")) >/dev/null 2>&1 &"); log += "Focus: ran Shortcut “\(s)”; runs again when \(appName(exe)) exits.\n"
+        whenExits(exe) { _ = self.sh("shortcuts run \(shq("\(s)")) >/dev/null 2>&1 &"); self.log += "Focus: ran Shortcut “\(s)” (game exited).\n" }
     }
     // §9.9 Pause in background: Options PAUSE_IN_BACKGROUND=1 suspends the game's process while another app is frontmost (SIGSTOP/SIGCONT).
     // Refused for anti-cheat and online-flagged games; the game must be a single-player title you tested this with.

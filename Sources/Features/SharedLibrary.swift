@@ -11,7 +11,7 @@ extension Model {
         guard sh("ps -axo command= | grep -c '\\.exe'").hasPrefix("0") else { log += "Share: quit Steam and games in this bottle first.\n"; return }
         busy = true; log += "Sharing \(name) with other users of this Mac… (moved to \(Model.sharedRoot), group-writable, linked back)\n"
         Task.detached {
-            let r = shell("mkdir -p '\(Model.sharedRoot)' && mv '\(src)' '\(dst)' && chmod -R +a 'group:staff allow read,write,execute,delete,add_file,add_subdirectory,file_inherit,directory_inherit' '\(dst)' 2>/dev/null; chmod -R g+rwX '\(dst)' && ln -s '\(dst)' '\(src)' && echo shared")
+            let r = shell("mkdir -p \(shq("\(Model.sharedRoot)")) && mv \(shq("\(src)")) \(shq("\(dst)")) && chmod -R +a 'group:staff allow read,write,execute,delete,add_file,add_subdirectory,file_inherit,directory_inherit' \(shq("\(dst)")) 2>/dev/null; chmod -R g+rwX \(shq("\(dst)")) && ln -s \(shq("\(dst)")) \(shq("\(src)")) && echo shared")
             await MainActor.run { self.busy = false; self.log += r.hasSuffix("shared") ? "Shared. Other users see it after opening Cosmopolitan once; their saves stay in their own Windows user folder.\n" : "Share failed: \(r)\n"; self.refresh() }
         }
     }

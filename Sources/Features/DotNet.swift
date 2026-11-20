@@ -12,7 +12,7 @@ extension Model {
         guard let probe = Bundle.main.path(forResource: "netprobe", ofType: "exe") else { return false }
         try? fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
         try? fm.removeItem(atPath: tmp + "/netprobe.exe"); try? fm.copyItem(atPath: probe, toPath: tmp + "/netprobe.exe")
-        let out = shell("cd '\(tmp)' && \(plainWine(prefix)) 'C:\\windows\\temp\\netprobe.exe' 2>&1")
+        let out = shell("cd \(shq("\(tmp)")) && \(plainWine(prefix)) 'C:\\windows\\temp\\netprobe.exe' 2>&1")
         try? fm.removeItem(atPath: tmp + "/netprobe.exe")
         try? fm.removeItem(atPath: dotnetMarker(prefix)); try? fm.removeItem(atPath: dotnetFailMarker(prefix))
         if let line = out.components(separatedBy: "\n").first(where: { $0.hasPrefix("netprobe ok") }) {
@@ -30,7 +30,7 @@ extension Model {
         try? fm.createDirectory(atPath: tmp, withIntermediateDirectories: true)
         try? fm.removeItem(atPath: dst); try? fm.copyItem(atPath: msi, toPath: dst)   // restricted bottles have no Z:, so the MSI goes onto C:
         log("Installing Wine Mono \(Pins.wineMono.version) into the bottle…\n")
-        _ = shell("cd '\(tmp)' && \(plainWine(prefix)) msiexec /i 'C:\\windows\\temp\\\(Pins.wineMono.file)' /qn >/dev/null 2>&1")
+        _ = shell("cd \(shq("\(tmp)")) && \(plainWine(prefix)) msiexec /i \(shq("C:\\windows\\temp\\\(Pins.wineMono.file)")) /qn >/dev/null 2>&1")
         try? fm.removeItem(atPath: dst)
         let ok = probeDotNet(prefix)
         log(ok ? "✓ .NET works in this bottle (probe program ran).\n" : "✗ Wine Mono installed, but the .NET probe did not run; .NET programs here stay marked not ready.\n")

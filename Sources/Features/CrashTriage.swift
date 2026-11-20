@@ -31,7 +31,7 @@ extension Model {
             let name = String(d.dropLast(4)), cur = "\(driversDir)/\(name)"
             if let m = (try? fm.attributesOfItem(atPath: cur))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 7 * 86400,
                ask("Go back to the previous \(name)?", "\(appName(exe)) closed right after starting, and \(name) was updated in the last 7 days. The new version is kept aside.", yes: "Go back") {
-                _ = sh("rm -rf '\(cur).bad'; mv '\(cur)' '\(cur).bad' && mv '\(driversDir)/\(d)' '\(cur)'")
+                _ = sh("rm -rf \(shq("\(cur).bad")); mv \(shq("\(cur)")) \(shq("\(cur).bad")) && mv \(shq("\(driversDir)/\(d)")) \(shq("\(cur)"))")
                 out += "  → driver \(name) was updated recently; rolled back to the previous version (new one kept as \(name).bad). Try again.\n"
                 log += out; updateStatus(); return
             }

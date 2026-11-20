@@ -36,6 +36,17 @@ enum Pins {
     static let cosmosEngine = Pinned(name: "Cosmos engine (Wine 11)", version: "cosmos-11.0-r10", file: "cosmos-11.0-r10.tar.gz",
         url: "https://github.com/cyber-prinzesse/cosmos-engine/releases/download/cosmos-11.0-r10/cosmos-11.0-r10.tar.gz",
         sha256: "84a1a05e09c5d6cbffb4f64d079f74949003e63b116a3b4b64f4868967bef0fa", license: "LGPL-2.1-or-later (Wine)", source: "github.com/cyber-prinzesse/cosmos-engine release cosmos-11.0-r10")
+    // Driver releases the weekly update may install on its own (SEC-003): exact upstream assets, SHA-256 from GitHub's asset digest
+    // (2026-11-19). A newer upstream release installs only from Drivers › Update…, after its file matches GitHub's published digest.
+    static let dxmt = Pinned(name: "DXMT", version: "v0.80", file: "dxmt-v0.80-builtin.tar.gz",
+        url: "https://github.com/3Shain/dxmt/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz",
+        sha256: "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d", license: "LGPL-2.1-or-later", source: "github.com/3Shain/dxmt release v0.80")
+    static let dxvk = Pinned(name: "DXVK (macOS async)", version: "v1.10.3-20230507-repack", file: "dxvk-macOS-async-v1.10.3-20230507-repack-builtin.tar.gz",
+        url: "https://github.com/Gcenx/DXVK-macOS/releases/download/v1.10.3-20230507-repack/dxvk-macOS-async-v1.10.3-20230507-repack-builtin.tar.gz",
+        sha256: "810b1e5caf8ce975b784fae866a130ad23fa0ea233b0e5609cbc4a45f3ef6f00", license: "zlib", source: "github.com/Gcenx/DXVK-macOS release v1.10.3-20230507-repack")
+    static let dxvk3 = Pinned(name: "DXVK 3 (gplasync)", version: "v3.1.1", file: "dxvk-v3.1.1-gplasync.tar.gz",
+        url: "https://github.com/Sikarugir-App/dxvk/releases/download/v3.1.1/dxvk-v3.1.1-gplasync.tar.gz",
+        sha256: "efdcb6ef217505d6de70aaaef7f5a1bdc2087d7f39301ae84ef50053dc6dab34", license: "zlib", source: "github.com/Sikarugir-App/dxvk release v3.1.1")
     static let sikarugirTemplate = "Template-1.0.24"
     static let sikarugirTemplateURL = "https://github.com/Sikarugir-App/Template/releases/download/v1.0/Template-1.0.24.tar.xz"
     static let templateTrees: [String: String] = [
@@ -93,7 +104,7 @@ func fetchPinned(_ p: Pinned, log: (String) -> Void = { _ in }) -> String? {
     let url = isTestBuild ? (ProcessInfo.processInfo.environment["COSMO_TEST_URL_" + p.file.replacingOccurrences(of: "[^A-Za-z0-9]", with: "_", options: .regularExpression)] ?? p.url) : p.url
     try? fm.removeItem(atPath: part)
     log("Downloading \(p.name) \(p.version) from \(URL(string: url)?.host ?? "a local file")…\n")
-    _ = shell("curl -sfL --retry 2 -m 1800 -o '\(part)' '\(url)'")
+    _ = shell("curl -sfL --retry 2 -m 1800 -o \(shq("\(part)")) \(shq("\(url)"))")
     guard let got = sha256File(part) else { log("✗ \(p.name): download failed; nothing installed.\n"); return nil }
     guard got == p.sha256 else {
         try? fm.removeItem(atPath: part)
@@ -106,4 +117,4 @@ func fetchPinned(_ p: Pinned, log: (String) -> Void = { _ in }) -> String? {
 }
 
 // Wine for helper runs inside a bottle: no driver slots (so nothing is ever copied into system32), msync like every launch.
-func plainWine(_ prefix: String) -> String { "env WINEPREFIX='\(prefix)' WINEMSYNC=1 WINEDEBUG=-all '\(wineBin)'" }
+func plainWine(_ prefix: String) -> String { "env WINEPREFIX=\(shq("\(prefix)")) WINEMSYNC=1 WINEDEBUG=-all \(shq("\(wineBin)"))" }

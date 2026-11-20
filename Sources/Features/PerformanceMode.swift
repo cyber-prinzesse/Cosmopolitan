@@ -87,6 +87,8 @@ extension Model {
             let backup = f + ".cosmo-air-backup", ini = (f as NSString).deletingLastPathComponent + "/Engine.ini", iniBackup = ini + ".cosmo-air-backup"
             if on {
                 guard let t = try? String(contentsOfFile: f, encoding: .utf8) else { continue }
+                // Already in Air shape (every app start re-applies): nothing to write, nothing to log.
+                if Model.airTuned(t) == t, ((try? String(contentsOfFile: ini, encoding: .utf8)) ?? "").contains(Model.airMark) { continue }
                 if !fm.fileExists(atPath: backup) { try? fm.copyItem(atPath: f, toPath: backup) }
                 try? Model.airTuned(t).write(toFile: f, atomically: true, encoding: .utf8)
                 let cur = (try? String(contentsOfFile: ini, encoding: .utf8)) ?? ""
@@ -94,17 +96,60 @@ extension Model {
                 try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: ini); try? fm.removeItem(atPath: ini)
                 try? Model.airEngineIni.write(toFile: ini, atomically: true, encoding: .utf8)
                 try? fm.setAttributes([.posixPermissions: 0o444], ofItemAtPath: ini)   // Unreal deletes config files it thinks are unneeded
-                out += "MacBook Air mode: \(game) at 1280x800, 30 fps, Air profile.\n"
+                out += "MacBook Air mode: Unreal game \(game) gets the Air settings profile (every game also gets the 1280x800 screen and 30 fps while it runs).\n"
             } else {
+                guard fm.fileExists(atPath: backup) || ((try? String(contentsOfFile: ini, encoding: .utf8)) ?? "").contains(Model.airMark) else { continue }
                 if fm.fileExists(atPath: backup) { try? fm.removeItem(atPath: f); try? fm.moveItem(atPath: backup, toPath: f) }
                 if ((try? String(contentsOfFile: ini, encoding: .utf8)) ?? "").contains(Model.airMark) {
                     try? fm.setAttributes([.posixPermissions: 0o644], ofItemAtPath: ini); try? fm.removeItem(atPath: ini)
                 }
                 if fm.fileExists(atPath: iniBackup) { try? fm.moveItem(atPath: iniBackup, toPath: ini) }
-                out += "MacBook Air mode off: \(game) settings restored.\n"
+                out += "MacBook Air mode off: Unreal game \(game) has its own settings back.\n"
             }
         }
         return out
+    }
+
+    // Air mode for every game, whatever its engine: while a game runs in a bottle with Air mode on, the bottle's emulated screen is
+    // 1280x800, so the game renders about a fifth of a Retina screen's pixels and Wine scales the picture up; when the game exits the
+    // screen goes back. Only while a game runs: Steam's own window would be scaled up too. The marker survives an app restart, so a
+    // screen left at 1280x800 always comes back.
+    nonisolated static func airScreenMark(_ bottle: String) -> String { "\(bottlesDir)/\(bottle)/.air-screen" }
+    // setmode.exe (Resources, source setmode.c) runs inside the bottle: it calls ChangeDisplaySettingsEx like a game does, unsaved.
+    // Blocking (one wine run): call off the main actor.
+    @discardableResult nonisolated static func setBottleScreen(_ prefix: String, _ args: String) -> Bool {
+        guard let src = Bundle.main.path(forResource: "setmode", ofType: "exe") else { return false }
+        let dst = prefix + "/drive_c/windows/temp/cosmo-setmode.exe", fm = FileManager.default
+        if (try? fm.attributesOfItem(atPath: dst))?[.size] as? Int != (try? fm.attributesOfItem(atPath: src))?[.size] as? Int {
+            try? fm.createDirectory(atPath: prefix + "/drive_c/windows/temp", withIntermediateDirectories: true)
+            try? fm.removeItem(atPath: dst); try? fm.copyItem(atPath: src, toPath: dst)
+        }
+        return shell("\(plainWine(prefix)) 'C:\\windows\\temp\\cosmo-setmode.exe' \(args) 2>/dev/null").contains("result 0")
+    }
+    static var airFailed: [String: Bool] = [:]   // bottle -> screen state whose switch failed (no retry loop)
+    // Every second (cheap: a small file read and a process scan per bottle; a wine run only when something changes).
+    func airScreenTick() {
+        let fm = FileManager.default
+        for b in bottles where !airSwitching.contains(b) {
+            let air = launchEnvRaw(b)["COSMO_AIR"] == "1", on = fm.fileExists(atPath: Model.airScreenMark(b))
+            guard air || on else { continue }
+            let want = air && Model.gameRunning(in: b)
+            guard want != on else { Model.airFailed[b] = nil; continue }
+            if Model.airFailed[b] == want { continue }   // failed before: retry only when the wanted state changes
+            airSwitching.insert(b)
+            let pfx = "\(bottlesDir)/\(b)"
+            Task.detached {
+                let ok = Model.setBottleScreen(pfx, want ? "1280 800" : "reset")
+                await MainActor.run {
+                    if ok, want { fm.createFile(atPath: Model.airScreenMark(b), contents: nil) }
+                    if ok, !want { try? fm.removeItem(atPath: Model.airScreenMark(b)) }
+                    let m = ok ? (want ? "MacBook Air mode: game running, screen 1280x800.\n" : "MacBook Air mode: screen back to normal.\n")
+                               : "MacBook Air mode: could not switch the screen in \(b).\n"
+                    Model.airFailed[b] = ok ? nil : want
+                    self.log += m; logToFile(m); _ = self.airSwitching.remove(b)
+                }
+            }
+        }
     }
 
     // --toggles-selftest <bottle>: every toggle on, checked, off, checked against the state before. Changes the bottle while it runs,
@@ -114,6 +159,8 @@ extension Model {
         var out = "toggles self-test on bottle \(b)\n", ok = true
         func check(_ c: Bool, _ what: String) { out += (c ? "  ok    " : "  FAIL  ") + what + "\n"; if !c { ok = false } }
         func read(_ p: String) -> String? { try? String(contentsOfFile: p, encoding: .utf8) }
+        // A clone of a bottle with a mode switched on starts Air-shaped; start from both modes off so "off restores" compares like with like.
+        _ = applyAirMode(false, bottle: b); _ = applyPerformanceMode(false, bottle: b)
         let files = unrealSettingsFiles(b), inis = files.map { ($0 as NSString).deletingLastPathComponent + "/Engine.ini" }
         let before = files.map(read), iniBefore = inis.map(read), env0 = launchEnvRaw()
         let x11 = "HKCU\\Software\\Wine\\X11 Driver", dll = "HKCU\\Software\\Wine\\DllOverrides"

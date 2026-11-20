@@ -8,7 +8,7 @@ extension Model {
         var r = "## Cosmopolitan bug report\n"
         r += "- App: \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?"))\n"
         r += "- Mac: \(sh("sysctl -n machdep.cpu.brand_string")), \(ProcessInfo.processInfo.physicalMemory / 1_073_741_824) GB, macOS \(ProcessInfo.processInfo.operatingSystemVersionString)\n"
-        r += "- Engine: \(sh("'\(wineBin)' --version 2>/dev/null")); drivers: \(driverList(launchEnvRaw(), bottle: selected).joined(separator: "+")); D3DMetal accepted: \(d3dmetalOK)\n"
+        r += "- Engine: \(sh("\(shq("\(wineBin)")) --version 2>/dev/null")); drivers: \(driverList(launchEnvRaw(), bottle: selected).joined(separator: "+")); D3DMetal accepted: \(d3dmetalOK)\n"
         r += "- Bottle: \(selected); programs: \(programs.map { appName($0) + " [" + (readiness[$0]?.note.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") + "]" }.joined(separator: "; "))\n"
         r += "- Status: \(driverStatus.1) / \(padStatus.1)\n\n### Log (last 200 lines)\n```\n"
         r += log.components(separatedBy: "\n").suffix(200).joined(separator: "\n") + "\n```\n"
@@ -29,7 +29,7 @@ extension Model {
         let tail = own?.text ?? ((try? String(contentsOfFile: logPath, encoding: .utf8)) ?? "").components(separatedBy: "\n").suffix(80).joined(separator: "\n")
         var r = "\(headline ?? "\(appName(exe)) exited with code \(code)") at \(Date())\n"
         r += "Program: \(exe)\nBottle: \(b)\nDrivers: \((launchedDrivers[exe] ?? driverList(launchEnvRaw(b), bottle: b)).joined(separator: "+"))\n"
-        r += "Versions: Cosmopolitan \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?")) · engine \(shell("'\(wineBin)' --version 2>/dev/null").trimmingCharacters(in: .whitespacesAndNewlines))"
+        r += "Versions: Cosmopolitan \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] ?? "?")) · engine \(shell("\(shq("\(wineBin)")) --version 2>/dev/null").trimmingCharacters(in: .whitespacesAndNewlines))"
         r += " · D3DMetal \(d3dmetalNow?.pretty ?? "not installed") · \(installedDrivers().map(driverLabel).joined(separator: ", ")) · macOS \(ProcessInfo.processInfo.operatingSystemVersionString)\n"
         r += "\(own?.label ?? "Last log lines"):\n\(tail)\n"
         let name = appName(exe).replacingOccurrences(of: "/", with: "-")

@@ -10,7 +10,7 @@ extension Model {
         if !force, let m = (try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 7 * 86400 { return "Ludusavi manifest is current." }
         let url = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_URL_ludusavi"] : nil) ?? "https://raw.githubusercontent.com/mtkennerly/ludusavi-manifest/master/data/manifest.yaml"
         try? fm.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-        _ = shell("curl -fsSL --max-time 300 -o '\(p).part' '\(url)' && mv '\(p).part' '\(p)'")
+        _ = shell("curl -fsSL --max-time 300 -o \(shq("\(p).part")) \(shq("\(url)")) && mv \(shq("\(p).part")) \(shq("\(p)"))")
         ludusaviLock.lock(); ludusaviIndex = nil; ludusaviLock.unlock()
         return fm.fileExists(atPath: p) ? "Ludusavi manifest: \(loadLudusavi().count) games." : "Ludusavi manifest could not be downloaded."
     }
@@ -75,12 +75,18 @@ extension Model {
     @discardableResult func backupSaves(_ exe: String, _ reason: String) -> String {
         let paths = savePaths(exe); guard !paths.isEmpty, let g = saveGame(exe) else { return "" }
         let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
-        let safe = g.name.replacingOccurrences(of: "/", with: "-"), root = "\(support)/save-backups/\(safe)", dst = "\(root)/\(f.string(from: Date())) \(reason)"
+        // The name comes from a downloaded manifest (SEC-004): one plain folder name under save-backups/, never "", "." or ".."
+        // (the prune below would then delete support folders). Leading dots go, so hidden names can't be made either.
+        var safe = g.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        while safe.hasPrefix(".") { safe.removeFirst() }
+        if safe.trimmingCharacters(in: .whitespaces).isEmpty { safe = "game" }
+        let root = "\(support)/save-backups/\(safe)", dst = "\(root)/\(f.string(from: Date())) \(reason)"
         let c = "\(bottlesDir)/\(bottleOf(exe))/drive_c/", fm = FileManager.default
         for p in paths {
             let rel = p.hasPrefix(c) ? String(p.dropFirst(c.count)) : (p as NSString).lastPathComponent
+            guard !rel.split(separator: "/").contains("..") else { continue }   // a manifest path with ".." must not land outside this backup
             try? fm.createDirectory(atPath: ("\(dst)/\(rel)" as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-            _ = shell("cp -cR '\(p.replacingOccurrences(of: "'", with: "'\\''"))' '\("\(dst)/\(rel)".replacingOccurrences(of: "'", with: "'\\''"))'")
+            _ = shell("cp -cR \(shq(p)) \(shq("\(dst)/\(rel)"))")
         }
         for old in (((try? fm.contentsOfDirectory(atPath: root)) ?? []).filter { !$0.hasPrefix(".") }.sorted(by: >)).dropFirst(5) { try? fm.removeItem(atPath: "\(root)/\(old)") }
         let note = "Saves of \(g.name) backed up (\(reason)): \(paths.count) item\(paths.count == 1 ? "" : "s") → save-backups/\(safe)\n"

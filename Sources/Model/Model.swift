@@ -18,6 +18,7 @@ import Network
     @Published var perf = false      // COSMO_PERF: Performance mode (PerformanceMode.swift)
     @Published var air = false       // COSMO_AIR: MacBook Air mode (PerformanceMode.swift)
     var vcAdopting: Set<String> = []  // bottles whose Visual C++ overrides are being written (Runtimes.swift, adoptVCTick)
+    var airSwitching: Set<String> = []  // bottles whose screen MacBook Air mode is switching (PerformanceMode.swift, airScreenTick)
     @Published var retina = false    // Wine Mac Driver RetinaMode
     @Published var drivers: Set<String> = []   // enabled renderer folders (DRIVERS= in cosmopolitan.env)
     @Published var autoDrivers = true          // DRIVERS absent or "auto"
@@ -128,9 +129,9 @@ import Network
         steamStopOwned.insert(b); defer { steamStopOwned.remove(b) }
         wine(b, ["C:\\Program Files (x86)\\Steam\\steam.exe", "-shutdown"], block: false)
         for _ in 0..<20 { try? await Task.sleep(nanoseconds: 1_000_000_000); if !steamRunning(in: b) { break } }
-        if steamRunning(in: b) { log += "Steam ignored the shutdown request; stopping \(b)'s programs.\n"; _ = sh("env WINEPREFIX='\(pfx)' '\(ws)' -k") }
+        if steamRunning(in: b) { log += "Steam ignored the shutdown request; stopping \(b)'s programs.\n"; _ = sh("env WINEPREFIX=\(shq("\(pfx)")) \(shq("\(ws)")) -k") }
         // Let the prefix's wineserver finish tearing down (≤15 s); relaunching into a dying server made Steam fail to create its first window.
-        _ = sh("env WINEPREFIX='\(pfx)' perl -e 'alarm 15; exec @ARGV' -- '\(ws)' -w 2>/dev/null; sleep 1")
+        _ = sh("env WINEPREFIX=\(shq("\(pfx)")) perl -e 'alarm 15; exec @ARGV' -- \(shq("\(ws)")) -w 2>/dev/null; sleep 1")
         // Steam rewrites localconfig.vdf on exit; once steam.exe is gone, settle then sync LaunchOptions (same path as a natural quit).
         steamSeenRunning[b] = false
         if wasUp {
@@ -251,6 +252,8 @@ import Network
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in guard self?.statusPollingActive == true else { return }; self?.updateStatus() } }
         // Steam LaunchOptions sync: must see quits while Cosmopolitan is in the background (user closes Steam from Steam/game; Steam self-update restart).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.noteSteamRunningState(); self?.steamIdleDietTick(); self?.adoptVCTick() } }
+        // MacBook Air mode: a game's screen switch must land before the game sets up its window, so this one looks every second.
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in Task { @MainActor in self?.airScreenTick() } }
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }   // fresh status on return, not up to 5 s stale
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in Task { @MainActor in self?.memoryAdvisor(); self?.steamLoopCheck() } }
         // Steam already down at launch: no running→gone edge, so apply LaunchOptions once now (Steam Play / REDlauncher skip).
@@ -383,7 +386,7 @@ import Network
             guard let acf = try? String(contentsOfFile: "\(lib)/\(f)", encoding: .utf8) else { continue }
             func val(_ k: String) -> String { acf.components(separatedBy: "\"\(k)\"").dropFirst().first?.components(separatedBy: "\"").dropFirst().first ?? "" }
             let id = val("appid"), dir = "\(lib)/common/\(val("installdir"))"
-            guard id != "228980" else { continue }   // Steamworks Common Redistributables
+            guard id != "228980", isSteamAppID(id) else { continue }   // Steamworks Common Redistributables; a non-numeric appid is not Steam's (SEC-001)
             // Biggest real exe: top level first; Unreal games keep it in <Game>/Binaries/Win64 with nothing at the top, so fall back to a 4-deep walk.
             func exes(_ depth: Int) -> [String] {
                 guard let en = FileManager.default.enumerator(atPath: dir) else { return [] }

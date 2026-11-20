@@ -13,7 +13,13 @@ extension Model {
         let install = !gameRunning()
         Task.detached { let out = Model.performUpdate(install: install); await MainActor.run { logToFile(out); self.log += out; self.updateStatus() } }
     }
-    func gameRunning() -> Bool { !procFind("steamapps\\common", under: realPath(bottlesDir)).isEmpty }
+    func gameRunning() -> Bool { bottles.contains { Model.gameRunning(in: $0) } }
+    // A game runs in this bottle: a process working inside steamapps/common (Wine keeps a process's working folder on its Windows
+    // folder; a game's process may be named just "eldenring.exe", so its name alone can't tell), or one whose command names that folder.
+    nonisolated static func gameRunning(in bottle: String) -> Bool {
+        let b = realPath("\(bottlesDir)/\(bottle)")
+        return !procFind("", under: b + "/drive_c/Program Files (x86)/Steam/steamapps/common").isEmpty || !procFind("steamapps\\common", under: b).isEmpty
+    }
 
     // A newer D3DMetal kept as renderer/d3dmetal@<version> (moved aside by an earlier install or swap) becomes the active one again;
     // the active one is kept as its own d3dmetal@<version>. Never while a game runs: every running game has the framework loaded.
@@ -62,7 +68,7 @@ extension Model {
                 a.addButton(withTitle: "Replace"); a.addButton(withTitle: "Cancel")
                 guard a.runModal() == .alertFirstButtonReturn else { self.log += "Drivers: nothing replaced.\n"; return }
                 self.busy = true; self.driverUpdates = "installing…"
-                Task.detached { let out = Model.performUpdate(install: true); await MainActor.run { logToFile(out); self.log += out; self.busy = false; self.driverUpdates = ""; self.updateStatus() } }
+                Task.detached { let out = Model.performUpdate(install: true, newest: true); await MainActor.run { logToFile(out); self.log += out; self.busy = false; self.driverUpdates = ""; self.updateStatus() } }
             }
         }
     }
@@ -70,7 +76,7 @@ extension Model {
     func restoreMissingDrivers() {
         guard let app = Pins.verifiedTemplate() else { log += "A driver folder is missing and the pinned Sikarugir template isn't on disk; run setup again.\n"; return }
         for d in ["dxmt", "dxvk", "dxvk3", "d9vk", "cnc_ddraw"] where !FileManager.default.fileExists(atPath: "\(driversDir)/\(d)/wine") {
-            _ = shell("cp -cR '\(app)/Contents/SharedSupport/renderer/\(d)' '\(driversDir)/\(d)'")
+            _ = shell("cp -cR \(shq("\(app)/Contents/SharedSupport/renderer/\(d)")) \(shq("\(driversDir)/\(d)"))")
             log += FileManager.default.fileExists(atPath: "\(driversDir)/\(d)/wine") ? "Restored the missing driver \(d) from \(Pins.sikarugirTemplate).\n" : "✗ Could not restore \(d).\n"
         }
         updateStatus()

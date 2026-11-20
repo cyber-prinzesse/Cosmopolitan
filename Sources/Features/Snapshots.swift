@@ -82,8 +82,8 @@ extension Model {
     func rollback(to snap: String) {
         let b = selected, pfx = "\(bottlesDir)/\(b)"; busy = true
         Task { @MainActor in
-            let ws = "env WINEPREFIX='\(pfx)' '\((wineBin as NSString).deletingLastPathComponent)/wineserver'"
-            _ = await Task.detached { shell("\(ws) -k 2>/dev/null; perl -e 'alarm 15; exec @ARGV' -- sh -c \"\(ws) -w\" 2>/dev/null") }.value
+            let ws = "env WINEPREFIX=\(shq("\(pfx)")) \(shq("\((wineBin as NSString).deletingLastPathComponent)/wineserver"))"
+            _ = await Task.detached { shell("\(ws) -k 2>/dev/null; perl -e 'alarm 15; exec @ARGV' -- sh -c \(shq("\(ws) -w")) 2>/dev/null") }.value
             let f = DateFormatter(); f.dateFormat = Model.snapStamp
             let aside = "\(bottlesDir)/.auto-\(b)-\(f.string(from: Date()))"
             var err = ""

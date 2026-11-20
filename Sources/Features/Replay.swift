@@ -12,13 +12,13 @@ final class ReplayRecorder {
     var gallery: String { NSHomeDirectory() + "/Movies/\(appDataName) Clips/\(game)" }
     func start(game: String, log: @escaping (String) -> Void) {
         self.game = game; running = true
-        _ = shell("rm -rf '\(dir)'; mkdir -p '\(dir)' '\(gallery)'")
+        _ = shell("rm -rf \(shq("\(dir)")); mkdir -p \(shq("\(dir)")) \(shq("\(gallery)"))")
         installHotkeys(log: log)
         Thread.detachNewThread { [self] in   // one 30 s recording after another; keep the last two files
             while running {
                 segment += 1
-                _ = shell("screencapture -v -V 30 -x '\(dir)/seg\(segment).mov' 2>/dev/null")
-                _ = shell("ls -t '\(dir)'/seg*.mov 2>/dev/null | tail -n +3 | xargs -I{} rm -f {}")
+                _ = shell("screencapture -v -V 30 -x \(shq("\(dir)/seg\(segment).mov")) 2>/dev/null")
+                _ = shell("ls -t \(shq("\(dir)"))/seg*.mov 2>/dev/null | tail -n +3 | xargs -I{} rm -f {}")
             }
         }
         log("Replay: rolling 30 s recording on; ⌃⌥⌘R saves the last ~30–60 s, ⌃⌥⌘S a screenshot → \(gallery)\n")
@@ -26,12 +26,12 @@ final class ReplayRecorder {
     func stop() { running = false; _ = shell("pkill -INT -f 'screencapture -v' 2>/dev/null"); hotkeys.forEach { if let h = $0 { UnregisterEventHotKey(h) } }; hotkeys = [] }
     func saveClip() -> String {
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        _ = shell("pkill -INT -f 'screencapture -v' 2>/dev/null; sleep 1; n=0; for f in $(ls -t '\(dir)'/seg*.mov 2>/dev/null | head -2); do n=$((n+1)); cp \"$f\" '\(gallery)/\(stamp)-part$n.mov'; done")
+        _ = shell("pkill -INT -f 'screencapture -v' 2>/dev/null; sleep 1; n=0; for f in $(ls -t \(shq("\(dir)"))/seg*.mov 2>/dev/null | head -2); do n=$((n+1)); cp \"$f\" \(shq("\(gallery)/\(stamp)-part$n.mov")); done")
         return "Replay saved: \(gallery)/\(stamp)-part*.mov\n"
     }
     func screenshot() -> String {
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        _ = shell("screencapture -x '\(gallery)/\(stamp).png'"); return "Screenshot saved: \(gallery)/\(stamp).png\n"
+        _ = shell("screencapture -x \(shq("\(gallery)/\(stamp).png"))"); return "Screenshot saved: \(gallery)/\(stamp).png\n"
     }
     private func installHotkeys(log: @escaping (String) -> Void) {
         guard hotkeys.isEmpty else { return }

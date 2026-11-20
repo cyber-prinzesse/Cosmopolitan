@@ -50,7 +50,7 @@ extension Model {
             case "graphics":
                 guard let app = Pins.verifiedTemplate(), ask("Put back the tested graphics component (\(p.target))?", "It differs from the version Cosmopolitan installed; your current copy is kept as \(p.target).old.", yes: "Put back") else { continue }
                 let dst = "\(driversDir)/\(p.target)"
-                _ = shell("rm -rf '\(dst).old'; mv '\(dst)' '\(dst).old' && cp -cR '\(app)/Contents/SharedSupport/renderer/\(p.target)' '\(dst)'")
+                _ = shell("rm -rf \(shq("\(dst).old")); mv \(shq("\(dst)")) \(shq("\(dst).old")) && cp -cR \(shq("\(app)/Contents/SharedSupport/renderer/\(p.target)")) \(shq("\(dst)"))")
                 log += "Graphics component \(p.target) put back to the tested version (the previous copy is \(p.target).old).\n"
             case "dotnet":
                 let pfx = "\(bottlesDir)/\(p.target)"

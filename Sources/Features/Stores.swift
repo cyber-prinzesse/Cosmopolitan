@@ -80,7 +80,7 @@ extension Model {
         if !fm.fileExists(atPath: eosDir), fm.fileExists(atPath: eosSetup) {
             log += "Installing Epic Online Services (needed before the launcher installs games)…\n"
             // /productid is mandatory; 42c61cfd… is the launcher's own EOS product id (what it logs as ProductId at boot).
-            _ = sh("env \(launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")) '\(wineBin)' '\(winPath(eosSetup))' /install /quiet productid=42c61cfdc3d24af5a8333b3284d47240 >/dev/null 2>&1")   // no slash before productid, or it is "missing"
+            _ = sh("env \(launchEnv(selected).map { "\($0.key)=\(shq($0.value))" }.joined(separator: " ")) \(shq("\(wineBin)")) \(shq("\(winPath(eosSetup))")) /install /quiet productid=42c61cfdc3d24af5a8333b3284d47240 >/dev/null 2>&1")   // no slash before productid, or it is "missing"
         }
     }
 
@@ -93,7 +93,7 @@ extension Model {
         let dst = "\(dir)/\(s.file)"
         busy = true; log += "Downloading the \(s.rawValue) installer…\n"
         Task.detached {
-            let r = shell("curl -fsSL --retry 3 -o '\(dst)' '\(s.url)' 2>&1 && echo __ok")
+            let r = shell("curl -fsSL --retry 3 -o \(shq("\(dst)")) \(shq("\(s.url)")) 2>&1 && echo __ok")
             await MainActor.run {
                 self.busy = false
                 guard r.contains("__ok") else { self.log += "Download failed: \(r)\n"; return }
@@ -168,7 +168,7 @@ extension Model {
             let cacheFile = "\(bottlesDir)/\(b)/options/.epic-installed.json"
             Task { @MainActor in   // the slow part runs detached; the rescan happens back on the main actor
                 let changed = await Task.detached { () -> Bool in
-                    let fresh = shell("'\(l)' list-installed --json 2>/dev/null")
+                    let fresh = shell("\(shq("\(l)")) list-installed --json 2>/dev/null")
                     let old = (try? String(contentsOfFile: cacheFile, encoding: .utf8)) ?? ""
                     guard !fresh.isEmpty, fresh != old else { return false }
                     try? fresh.write(toFile: cacheFile, atomically: true, encoding: .utf8); return true
@@ -186,7 +186,7 @@ extension Model {
             // `list --json` came back empty for this account while the plain listing (with -T for third-party-managed titles) had the
             // games, so the text form is parsed:  " * Title (App name: xyz | Version: …)"; "  + …" lines are DLC and are skipped.
             if epicSignedIn(), epicOwned.isEmpty { Task.detached {   // once per app run (a network call), not on every scan
-                let s = shell("'\(l)' list --platform Windows -T 2>/dev/null")   // on macOS Legendary defaults to the Mac platform, which lists nothing here
+                let s = shell("\(shq("\(l)")) list --platform Windows -T 2>/dev/null")   // on macOS Legendary defaults to the Mac platform, which lists nothing here
                 var owned: [(id: String, name: String)] = []
                 for line in s.components(separatedBy: "\n") where line.hasPrefix(" * ") {
                     guard let r = line.range(of: " (App name: ") else { continue }
@@ -198,7 +198,7 @@ extension Model {
             } }
         }
         if let g = lgog, gogSignedIn(), gogOwned.isEmpty { Task.detached {
-            let s = shell("'\(g)' --list json --platform w 2>/dev/null")
+            let s = shell("\(shq("\(g)")) --list json --platform w 2>/dev/null")
             guard let d = s.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: d) else { return }
             let arr = (obj as? [[String: Any]]) ?? ((obj as? [String: Any])?["games"] as? [[String: Any]]) ?? []
             gogOwned = arr.compactMap { g in (g["gamename"] as? String).map { ($0, g["title"] as? String ?? $0) } }.sorted { $0.1 < $1.1 }
@@ -237,7 +237,7 @@ extension Model {
     func launchEpic(_ app: String, exe: String) {
         guard let l = legendary else { return }
         var need = prepare(exe)
-        let js = shell("'\(l)' launch '\(app)' --json --wine '\(wineBin)' --wine-prefix '\(bottlesDir)/\(selected)' 2>/dev/null")
+        let js = shell("\(shq("\(l)")) launch \(shq("\(app)")) --json --wine \(shq("\(wineBin)")) --wine-prefix \(shq("\(bottlesDir)/\(selected)")) 2>/dev/null")
         guard let d = js.data(using: .utf8), let info = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else {
             log += "Legendary could not prepare the launch (not signed in, or the game needs an update: Stores… › Sign in / reinstall).\n"; return
         }

@@ -5,7 +5,7 @@ import SwiftUI
 let d3dmetalAcceptFile = support + "/d3dmetal-license.json"
 // Terms of Use: shown on first run and again whenever TERMS.txt changes (acceptance = date + SHA-256 of the shipped file).
 let termsPath = Bundle.main.path(forResource: "TERMS", ofType: "txt") ?? "", termsAcceptFile = support + "/terms-accepted.json"
-func termsHash() -> String { shell("shasum -a 256 '\(termsPath)' 2>/dev/null | cut -d' ' -f1") }
+func termsHash() -> String { shell("shasum -a 256 \(shq("\(termsPath)")) 2>/dev/null | cut -d' ' -f1") }
 func termsAccepted() -> Bool {
     guard let j = try? String(contentsOfFile: termsAcceptFile, encoding: .utf8), let h = j.components(separatedBy: "\"sha256\":\"").dropFirst().first?.components(separatedBy: "\"").first else { return false }
     return !h.isEmpty && h == termsHash()
@@ -17,7 +17,7 @@ func d3dmetalInstalled() -> Bool {
     let d = driversDir + "/d3dmetal"
     return FileManager.default.fileExists(atPath: d + "/wine/x86_64-windows/d3d12.dll") && FileManager.default.fileExists(atPath: d + "/external/D3DMetal.framework/D3DMetal") && d3dmetalLicenseFile() != nil
 }
-func licenseHash() -> String { d3dmetalLicenseFile().map { shell("shasum -a 256 '\($0)' 2>/dev/null | cut -d' ' -f1") } ?? "" }
+func licenseHash() -> String { d3dmetalLicenseFile().map { shell("shasum -a 256 \(shq("\($0)")) 2>/dev/null | cut -d' ' -f1") } ?? "" }
 func checkD3DMetalAccepted() -> Bool {
     guard let j = try? String(contentsOfFile: d3dmetalAcceptFile, encoding: .utf8), let h = j.components(separatedBy: "\"sha256\":\"").dropFirst().first?.components(separatedBy: "\"").first else { return false }
     return !h.isEmpty && h == licenseHash()

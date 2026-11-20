@@ -22,7 +22,7 @@ extension Model {
         guard !FileManager.default.fileExists(atPath: dst) else { log += "Import: a bottle named \(safe) already exists.\n"; return }
         busy = true; log += "Importing \(src) → \(safe) (APFS clone, original untouched)…\n"
         Task.detached {
-            let r = shell("cp -cR '\(src)' '\(dst)' 2>&1 | tail -1; rm -f '\(dst)/dosdevices/z:'")   // imported bottles start restricted too
+            let r = shell("cp -cR \(shq("\(src)")) \(shq("\(dst)")) 2>&1 | tail -1; rm -f \(shq("\(dst)/dosdevices/z:"))")   // imported bottles start restricted too
             await MainActor.run { self.busy = false; self.log += r.isEmpty ? "Imported \(safe). Controller defaults apply on first Repair.\n" : "Import: \(r)\n"; self.refresh(); self.selected = safe; self.scan() }
         }
     }

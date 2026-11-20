@@ -5,7 +5,7 @@ extension Model {
     func willItRun(_ link: String) -> String {
         guard let id = link.components(separatedBy: "/app/").dropFirst().first?.components(separatedBy: "/").first ?? (Int(link) != nil ? link : nil) else { return "Paste a Steam store link (…/app/<id>/…) or an app id.\n" }
         let c = communityFixes(id)
-        let hb = sh("curl -s -m 8 'https://gethighball.com/data/steam/\(id).json'")
+        let hb = sh("curl -s -m 8 \(shq("https://gethighball.com/data/steam/\(id).json"))")
         let title = hb.components(separatedBy: "\"title\": \"").dropFirst().first?.components(separatedBy: "\"").first ?? "App \(id)"
         var v = "Will it run? \(title) on \(sh("sysctl -n machdep.cpu.brand_string")), \(ProcessInfo.processInfo.physicalMemory / 1_073_741_824) GB, macOS \(ProcessInfo.processInfo.operatingSystemVersionString):\n"
         if let ac = antiCheatVerdict(c.anticheat) { v += "  • \(ac.1)\n" }
