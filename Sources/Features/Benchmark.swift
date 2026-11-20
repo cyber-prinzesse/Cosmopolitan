@@ -34,13 +34,13 @@ extension Model {
             let tmp = NSTemporaryDirectory() + "cosmo-bench.png"
             for _ in 0..<(seconds / 2) {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                _ = sh("screencapture -x -R0,0,1800,300 '\(tmp)' 2>/dev/null")   // the HUD sits top-right; crop the top band of the main display
+                _ = sh("screencapture -x -R0,0,1800,300 \(shq("\(tmp)")) 2>/dev/null")   // the HUD sits top-right; crop the top band of the main display
                 if let v = Model.hudFPS(in: tmp), v > 0 { samples.append(v) }
             }
             if FileManager.default.fileExists(atPath: hud) { var t2 = (try? String(contentsOfFile: optionsPath(exe), encoding: .utf8)) ?? ""; t2 = t2.replacingOccurrences(of: "\nMTL_HUD_ENABLED=1\n", with: "\n"); saveOptions(exe, t2); try? FileManager.default.removeItem(atPath: hud) }
             guard samples.count >= 5 else { log += "Benchmark: could not read the HUD (\(samples.count) samples). Is the game fullscreen on the main display?\n"; return }
             let sorted = samples.sorted(), avg = samples.reduce(0, +) / Double(samples.count), low = sorted[max(0, Int(Double(sorted.count) * 0.01))]
-            let line = "\(ISO8601DateFormatter().string(from: Date())),\(drivers),\(sh("'\(wineBin)' --version 2>/dev/null")),\(String(format: "%.1f", avg)),\(String(format: "%.1f", low)),\(samples.count)"
+            let line = "\(ISO8601DateFormatter().string(from: Date())),\(drivers),\(sh("\(shq("\(wineBin)")) --version 2>/dev/null")),\(String(format: "%.1f", avg)),\(String(format: "%.1f", low)),\(samples.count)"
             let prev = ((try? String(contentsOfFile: fpsHistoryPath(exe), encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
             try? (prev + [line]).joined(separator: "\n").appending("\n").write(toFile: fpsHistoryPath(exe), atomically: true, encoding: .utf8)
             var out = "Benchmark \(appName(exe)): avg \(String(format: "%.0f", avg)) fps, 1% low \(String(format: "%.0f", low)) fps over \(samples.count) samples on \(drivers).\n"

@@ -38,13 +38,19 @@ trap 'rm -P -f "$KEYFILE"; rmdir "$KEYDIR" 2>/dev/null; [ -n "$ZIPCHECK" ] && rm
 # Drop any leftover feed first so a failed generate_appcast cannot leave yesterday's XML for the greps below (and never hide generate_appcast in `&&`).
 rm -f dist/appcast.xml; rm -rf dist/appcast; mkdir -p dist/appcast
 cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/
-./Sparkle/bin/generate_appcast --ed-key-file "$KEYFILE" --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/
+# Phased rollout: Sparkle splits running copies into 7 groups and offers the update to one more group per interval (default one day),
+# so a bad release reaches a seventh of users on day 1 and can be pulled (Rollback in docs/RELEASE-CHECKLIST.md) before the rest get it.
+# Urgent fixes: COSMO_ROLLOUT_SECONDS=0 offers it to everyone at once. "Check for Updates…" by hand always gets it.
+ROLLOUT=${COSMO_ROLLOUT_SECONDS:-86400}
+./Sparkle/bin/generate_appcast --ed-key-file "$KEYFILE" --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" \
+  $([ "$ROLLOUT" -gt 0 ] && echo --phased-rollout-interval "$ROLLOUT") dist/appcast/
 mv dist/appcast/appcast.xml dist/appcast.xml; rm -rf dist/appcast
 grep -q "sparkle:edSignature" dist/appcast.xml || { echo "appcast is not signed, aborting"; exit 1; }
 # Must be *this* version's enclosure and CFBundleVersion — not a stale feed from a previous release still sitting in dist/.
 grep -q "releases/download/v$COSMO_VERSION/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast.xml || { echo "appcast does not point at v$COSMO_VERSION/Cosmopolitan-$COSMO_VERSION.zip: not releasing"; exit 1; }
 # generate_appcast writes a child element; older feeds sometimes used an enclosure attribute — accept either.
 grep -qE "sparkle:version=\"$COSMO_BUILD\"|<sparkle:version>$COSMO_BUILD</sparkle:version>" dist/appcast.xml || { echo "appcast sparkle:version is not $COSMO_BUILD: not releasing"; exit 1; }
+[ "$ROLLOUT" -gt 0 ] && { grep -q "phasedRolloutInterval>$ROLLOUT<" dist/appcast.xml || { echo "appcast has no phased rollout ($ROLLOUT s): not releasing"; exit 1; }; }
 # The zip is what Sparkle installs; verify the nested app the same way as the build tree (ad-hoc signature must survive ditto).
 ZIPCHECK=$(mktemp -d)
 ditto -x -k "dist/Cosmopolitan-$COSMO_VERSION.zip" "$ZIPCHECK"

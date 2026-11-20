@@ -21,8 +21,11 @@ extension Model {
         Task.detached(priority: .background) {
             var loaded: [(String, NSImage)] = []
             for (exe, id, path) in todo {
-                if !FileManager.default.fileExists(atPath: path) {
-                    _ = shell("for n in library_600x900.jpg header.jpg library_hero.jpg; do curl -s -m 15 -o '\(path)' -f \"https://cdn.cloudflare.steamstatic.com/steam/apps/\(id)/$n\" && break; rm -f '\(path)'; done")
+                if !FileManager.default.fileExists(atPath: path), isSteamAppID(id) {
+                    for n in ["library_600x900.jpg", "header.jpg", "library_hero.jpg"] {
+                        if runTool("/usr/bin/curl", ["-s", "-f", "-m", "15", "-o", path, "https://cdn.cloudflare.steamstatic.com/steam/apps/\(id)/\(n)"]).status == 0 { break }
+                        try? FileManager.default.removeItem(atPath: path)
+                    }
                 }
                 if let img = NSImage(contentsOfFile: path) { loaded.append((exe, img)) }
             }

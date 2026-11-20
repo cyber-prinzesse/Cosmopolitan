@@ -67,7 +67,7 @@ func updatePrefixIfStale(_ prefix: String) {
     if others.isEmpty {
         kill(wb.processIdentifier, SIGKILL)
         for n in ["rundll32.exe", "wineboot.exe"] { for p in procFind(n, under: dir) { kill(p, SIGKILL) } }
-        _ = shell("env WINEPREFIX='\(prefix)' '\((wineBin as NSString).deletingLastPathComponent)/wineserver' -k 2>/dev/null")
+        _ = shell("env WINEPREFIX=\(shq("\(prefix)")) \(shq("\((wineBin as NSString).deletingLastPathComponent)/wineserver")) -k 2>/dev/null")
         logToFile("Updating \(name) for this engine didn't finish in \(limit) s; it was stopped (nothing else was running there) and will be tried again at the next start.\n")
     } else {
         let what = Set(others.map(programName)).sorted().joined(separator: ", ")

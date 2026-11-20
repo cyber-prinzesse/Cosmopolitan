@@ -34,6 +34,7 @@ cp Resources/cosmo_exeIcon.icns build.noindex/Cosmopolitan.app/Contents/Resource
 clang -arch x86_64 -mmacosx-version-min=10.15 -O2 -Wall -Werror -o build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_wineloader EngineAddon/cosmo_wineloader.c
 codesign --force --sign - build.noindex/Cosmopolitan.app/Contents/Resources/cosmo_wineloader
 cp Resources/netprobe.exe build.noindex/Cosmopolitan.app/Contents/Resources/   # .NET probe run once per bottle (source: Resources/netprobe.cs)
+cp Resources/setmode.exe build.noindex/Cosmopolitan.app/Contents/Resources/   # MacBook Air mode: game-time screen switch (source: Resources/setmode.c)
 cat > build.noindex/Cosmopolitan.app/Contents/Info.plist <<P
 <?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>
 <key>CFBundleName</key><string>Cosmopolitan</string><key>CFBundleExecutable</key><string>Cosmopolitan</string>

@@ -22,7 +22,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild && !isB
             let folder = (i + 2 < a.count && !a[i + 2].hasPrefix("-") && !FileManager.default.fileExists(atPath: "\(bottlesDir)/\(a[i + 2])/drive_c")) ? a[i + 2]
                 : (i + 3 < a.count ? a[i + 3] : nil)
             m.findApps(extraFolder: folder)
-        case "--update": if a.contains("--install") { m.log += m.preferNewestD3DMetal() }; m.log += m.newerGPTKHint() + Model.performUpdate(install: a.contains("--install"))
+        case "--update": if a.contains("--install") { m.log += m.preferNewestD3DMetal() }; m.log += m.newerGPTKHint() + Model.performUpdate(install: a.contains("--install"), newest: a.contains("--newest"))
         case "--tunesteam": m.tuneSteam()
         case "--steam-exit-sync":   // Steam was up → now gone via the background watch path (COSMO_TEST_STEAM_EXIT_DELAY; COSMO_TEST_APP_INACTIVE=1 = app not frontmost)
             m.log += "status polling active: \(m.statusPollingActive)\n"

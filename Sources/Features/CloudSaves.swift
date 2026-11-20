@@ -24,7 +24,7 @@ extension Model {
             let tag = f.replacingOccurrences(of: "\(bottlesDir)/\(selected)/drive_c/", with: "").replacingOccurrences(of: "/", with: "_")
             let cloud = "\(dst)/\(tag)"
             // rsync --update copies only files newer on the source side, in the chosen direction.
-            let r = phase == "pull" ? sh("[ -d '\(cloud)' ] && rsync -a --update '\(cloud)/' '\(f)/' 2>&1 | tail -1") : sh("mkdir -p '\(cloud)' && rsync -a --update '\(f)/' '\(cloud)/' 2>&1 | tail -1")
+            let r = phase == "pull" ? sh("[ -d \(shq("\(cloud)")) ] && rsync -a --update \(shq("\(cloud)/")) \(shq("\(f)/")) 2>&1 | tail -1") : sh("mkdir -p \(shq("\(cloud)")) && rsync -a --update \(shq("\(f)/")) \(shq("\(cloud)/")) 2>&1 | tail -1")
             if !r.isEmpty { log += "Cloud saves: \(r)\n" }
         }
         log += "Cloud saves: \(phase == "pull" ? "pulled newer saves from" : "pushed saves to") iCloud Drive for \(appName(exe)) (\(folders.count) folder\(folders.count == 1 ? "" : "s")).\n"

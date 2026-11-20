@@ -89,7 +89,7 @@ extension Model {
         if !fm.contentsEqual(atPath: tool, andPath: dest) {
             let t = dest + ".new"; try? fm.removeItem(atPath: t)
             guard (try? fm.copyItem(atPath: tool, toPath: t)) != nil else { return "✗ Dock labels: couldn't copy \(wineloaderName) into the engine\n" }
-            _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+            _ = shell("chmod 755 \(shq("\(t)")); codesign --force -s - \(shq("\(t)")) 2>/dev/null")
             guard rename(t, dest) == 0 else { try? fm.removeItem(atPath: t); return "✗ Dock labels: couldn't install \(wineloaderName)\n" }
             note += "Dock labels: installed \(wineloaderName) into the engine's bin.\n"
         }
@@ -102,13 +102,13 @@ extension Model {
                 }
                 let t = unixWine + ".cosmo-new"; try? fm.removeItem(atPath: t)
                 guard (try? fm.copyItem(atPath: tool, toPath: t)) != nil else { return note + "✗ Dock labels: couldn't stage Wine 11 unix dispatcher\n" }
-                _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+                _ = shell("chmod 755 \(shq("\(t)")); codesign --force -s - \(shq("\(t)")) 2>/dev/null")
                 guard rename(t, unixWine) == 0 else { try? fm.removeItem(atPath: t); return note + "✗ Dock labels: couldn't replace Wine 11 unix wine\n" }
                 note += "Dock labels: Wine 11 unix wine is now the dispatcher (real loader: \(wineRealBackup)).\n"
             } else if fm.fileExists(atPath: unixWine), isCosmoWineloader(unixWine), !fm.contentsEqual(atPath: tool, andPath: unixWine) {
                 let t = unixWine + ".cosmo-new"; try? fm.removeItem(atPath: t)
                 try? fm.copyItem(atPath: tool, toPath: t)
-                _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+                _ = shell("chmod 755 \(shq("\(t)")); codesign --force -s - \(shq("\(t)")) 2>/dev/null")
                 _ = rename(t, unixWine)
             }
         }

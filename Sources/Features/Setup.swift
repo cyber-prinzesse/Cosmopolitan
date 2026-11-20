@@ -32,7 +32,7 @@ extension Model {
         let app = "\(tplDir)/\(Pins.sikarugirTemplate).app"
         if !fm.fileExists(atPath: app) {
             step("Downloading \(Pins.sikarugirTemplate) (about 150 MB)…", 0.05)
-            _ = shell("mkdir -p '\(tplDir)' && cd '\(tplDir)' && curl -sfL -m 1200 -o t.tar.xz '\(Pins.sikarugirTemplateURL)' && tar xf t.tar.xz --exclude '*/renderer/d3dmetal*' --exclude '*/renderer/apple_gptk*'; rm -f t.tar.xz")
+            _ = shell("mkdir -p \(shq("\(tplDir)")) && cd \(shq("\(tplDir)")) && curl -sfL -m 1200 -o t.tar.xz \(shq("\(Pins.sikarugirTemplateURL)")) && tar xf t.tar.xz --exclude '*/renderer/d3dmetal*' --exclude '*/renderer/apple_gptk*'; rm -f t.tar.xz")
             guard fm.fileExists(atPath: app) else { step("✗ Template download failed. Try again.", 0); return false }
         }
         if let bad = Pins.templateTrees.keys.sorted().first(where: { Pins.templateTree(app, $0) != Pins.templateTrees[$0] }) {
@@ -51,30 +51,30 @@ extension Model {
                 step("✗ The engine download failed or didn't match its pinned SHA-256; nothing installed.", 0); return false
             }
             step("Unpacking the engine…", 0.6)
-            _ = shell("mkdir -p '\(engRoot)' && cd '\(engRoot)' && tar xf '\(tarball)'")
-            guard fm.fileExists(atPath: engRoot + "/wswine.bundle/bin/wine") else { _ = shell("rm -rf '\(engRoot)'"); step("✗ Engine download failed. Try again.", 0); return false }
+            _ = shell("mkdir -p \(shq("\(engRoot)")) && cd \(shq("\(engRoot)")) && tar xf \(shq("\(tarball)"))")
+            guard fm.fileExists(atPath: engRoot + "/wswine.bundle/bin/wine") else { _ = shell("rm -rf \(shq("\(engRoot)"))"); step("✗ Engine download failed. Try again.", 0); return false }
         }
         step("Preparing the engine (libraries, MoltenVK, GStreamer)…", 0.7)
         let prep = prepareEngine(engRoot + "/wswine.bundle")
         step(prep.trimmingCharacters(in: .whitespacesAndNewlines), 0.8)
         // 3. Drivers from the template (never D3DMetal)
         step("Installing graphics drivers (DXMT, DXVK, D9VK, cnc-ddraw)…", 0.85)
-        _ = shell("mkdir -p '\(driversDir)'")
+        _ = shell("mkdir -p \(shq("\(driversDir)"))")
         for d in ["dxmt", "dxvk", "dxvk3", "d9vk", "cnc_ddraw"] where !fm.fileExists(atPath: "\(driversDir)/\(d)/wine") {
-            _ = shell("cp -cR '\(app)/Contents/SharedSupport/renderer/\(d)' '\(driversDir)/\(d)' 2>/dev/null")
+            _ = shell("cp -cR \(shq("\(app)/Contents/SharedSupport/renderer/\(d)")) \(shq("\(driversDir)/\(d)")) 2>/dev/null")
         }
         guard fm.fileExists(atPath: driversDir + "/dxmt/wine") else { step("✗ Drivers missing from the template. Try again.", 0); return false }
         let wine = "\(engRoot)/wswine.bundle/bin/wine"
-        let v = shell("'\(wine)' --version 2>&1 | head -1")
+        let v = shell("\(shq("\(wine)")) --version 2>&1 | head -1")
         guard v.hasPrefix("wine-") else { step("✗ The engine does not start: \(v.prefix(80))", 0); return false }
         // 4. A first bottle, so a fresh Mac can install something right away (same steps as Create: wineboot, SDL pads, Windows 10, no Z:).
         let bottles = ((try? fm.contentsOfDirectory(atPath: bottlesDir)) ?? []).filter { !$0.hasPrefix(".") }
         if bottles.isEmpty {
             step("Creating the first bottle \"Games\"…", 0.92)
             let pfx = "\(bottlesDir)/Games"
-            let env = "WINEPREFIX='\(pfx)' WINEDEBUG=-all WINEMSYNC=1 WINEDLLOVERRIDES='mscoree,mshtml='"
+            let env = "WINEPREFIX=\(shq("\(pfx)")) WINEDEBUG=-all WINEMSYNC=1 WINEDLLOVERRIDES='mscoree,mshtml='"
             PreparingWindow.begin(bottle: "Games")
-            _ = shell("mkdir -p '\(pfx)'; \(env) '\(wine)' wineboot -u >/dev/null 2>&1; \(env) '\(wine)' reg add 'HKLM\\System\\CurrentControlSet\\Services\\winebus' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; \(env) '\(wine)' winecfg -v win10 >/dev/null 2>&1; '\(engRoot)/wswine.bundle/bin/wineserver' -w; rm -f '\(pfx)/dosdevices/z:'")
+            _ = shell("mkdir -p \(shq("\(pfx)")); \(env) \(shq("\(wine)")) wineboot -u >/dev/null 2>&1; \(env) \(shq("\(wine)")) reg add 'HKLM\\System\\CurrentControlSet\\Services\\winebus' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; \(env) \(shq("\(wine)")) winecfg -v win10 >/dev/null 2>&1; \(shq("\(engRoot)/wswine.bundle/bin/wineserver")) -w; rm -f \(shq("\(pfx)/dosdevices/z:"))")
             PreparingWindow.end()
             guard fm.fileExists(atPath: "\(pfx)/drive_c/windows/system32/kernel32.dll") else { step("✗ The first bottle could not be created.", 0); return false }
             step("Installing .NET support (Wine Mono from WineHQ)…", 0.95)

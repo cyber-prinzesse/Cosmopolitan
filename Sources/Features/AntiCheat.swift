@@ -46,7 +46,7 @@ extension Model {
         if !force, let m = (try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 86400 { return "AreWeAntiCheatYet list is current." }
         let url = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_URL_awacy"] : nil) ?? "https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/master/games.json"
         try? fm.createDirectory(atPath: (p as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-        _ = shell("curl -fsSL --max-time 60 -o '\(p).part' '\(url)' && mv '\(p).part' '\(p)'")
+        _ = shell("curl -fsSL --max-time 60 -o \(shq("\(p).part")) \(shq("\(url)")) && mv \(shq("\(p).part")) \(shq("\(p)"))")
         awacyLock.lock(); awacyIndex = nil; awacyLock.unlock()
         return fm.fileExists(atPath: p) ? "AreWeAntiCheatYet list: \(awacyCount()) games." : "AreWeAntiCheatYet list could not be downloaded."
     }

@@ -107,9 +107,9 @@ extension Model {
             for d in vcRedistDLLs where fm.fileExists(atPath: "\(sys)/\(d).dll") && !isMicrosoftDLL("\(sys)/\(d).dll") {
                 try? fm.removeItem(atPath: "\(sys)/\(d).dll")
             }
-            _ = shell("cd '\(tmp)' && \(w) 'C:\\windows\\temp\\\(r.pin.file)' /install /quiet /norestart >/dev/null 2>&1")
+            _ = shell("cd \(shq("\(tmp)")) && \(w) \(shq("C:\\windows\\temp\\\(r.pin.file)")) /install /quiet /norestart >/dev/null 2>&1")
         case .directx:   // the package is a self-extractor: unpack it, then run Microsoft's own DXSETUP silently
-            _ = shell("cd '\(tmp)' && \(w) 'C:\\windows\\temp\\\(r.pin.file)' /Q '/T:C:\\windows\\temp\\dxredist' >/dev/null 2>&1 && \(w) 'C:\\windows\\temp\\dxredist\\DXSETUP.exe' /silent >/dev/null 2>&1")
+            _ = shell("cd \(shq("\(tmp)")) && \(w) \(shq("C:\\windows\\temp\\\(r.pin.file)")) /Q '/T:C:\\windows\\temp\\dxredist' >/dev/null 2>&1 && \(w) 'C:\\windows\\temp\\dxredist\\DXSETUP.exe' /silent >/dev/null 2>&1")
             try? fm.removeItem(atPath: tmp + "/dxredist")
         }
         try? fm.removeItem(atPath: dst)

@@ -10,7 +10,7 @@ extension Model {
         func cached(_ name: String, _ url: String) -> String {
             let p = "\(dir)/\(name)"
             if let m = (try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 7 * 86400 { return (try? String(contentsOfFile: p, encoding: .utf8)) ?? "" }
-            _ = sh("curl -s -m 6 -o '\(p)' -w '%{http_code}' '\(url)' | grep -q '^200$' || : > '\(p)'")   // 404 = no fix needed; empty file remembers that
+            _ = sh("curl -s -m 6 -o \(shq("\(p)")) -w '%{http_code}' \(shq("\(url)")) | grep -q '^200$' || : > \(shq("\(p)"))")   // 404 = no fix needed; empty file remembers that
             return (try? String(contentsOfFile: p, encoding: .utf8)) ?? ""
         }
         let db = cached("\(appid).json", "https://www.protondb.com/api/v1/reports/summaries/\(appid).json")

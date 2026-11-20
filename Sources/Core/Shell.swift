@@ -25,6 +25,15 @@ func pgrepPattern(_ name: String) -> String { name.isEmpty ? name : "[\(name.pre
 }
 // Canonical path (symlinks and ".." resolved; keeps /private, which NSString path APIs strip from /private/tmp). The path itself if it doesn't exist.
 func realPath(_ p: String) -> String { guard let r = realpath(p, nil) else { return p }; defer { free(r) }; return String(cString: r) }
+// Run a tool with an argument list (no shell: paths and names from a bottle stay plain arguments); exit status + output. Any thread.
+func runTool(_ path: String, _ args: [String]) -> (status: Int32, out: String) {
+    let p = Process(); p.executableURL = URL(fileURLWithPath: path); p.arguments = args
+    let o = Pipe(); p.standardOutput = o; p.standardError = o
+    let out = String(decoding: runToEnd(p), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    return (p.isRunning || p.processIdentifier == 0 ? -1 : p.terminationStatus, out)
+}
+// Steam app ids are plain decimal numbers; anything else in an appmanifest (a Windows program can write one) is not an app id.
+func isSteamAppID(_ s: String) -> Bool { !s.isEmpty && s.count <= 12 && s.allSatisfy { ("0"..."9").contains($0) } }
 // Run a shell command and return its output; usable from any thread.
 func shell(_ cmd: String) -> String {
     let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/sh"); p.arguments = ["-c", cmd]

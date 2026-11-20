@@ -32,14 +32,14 @@ extension Model {
             try? fm.createDirectory(atPath: p + "/Contents/MacOS", withIntermediateDirectories: true); try? fm.createDirectory(atPath: p + "/Contents/Resources", withIntermediateDirectories: true)
             let url = "cosmopolitan://launch?name=" + (g.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)?.replacingOccurrences(of: "&", with: "%26") ?? g.name)
             let q = { (s: String) in "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
-            fm.createFile(atPath: p + "/Contents/MacOS/launch", contents: Data("#!/bin/sh\n# Plays \(g.name) through Cosmopolitan (launch checks included).\nopen -a \(q(app)) \(q(url)) 2>/dev/null || open \(q(url))\n".utf8), attributes: [.posixPermissions: 0o755])
+            fm.createFile(atPath: p + "/Contents/MacOS/launch", contents: Data("#!/bin/sh\n# Plays this game through Cosmopolitan (launch checks included).\nopen -a \(q(app)) \(q(url)) 2>/dev/null || open \(q(url))\n".utf8), attributes: [.posixPermissions: 0o755])
             var icon = ""
             if let png = g.icon, (try? png.write(to: URL(fileURLWithPath: p + "/Contents/Resources/icon.png"))) != nil {
                 _ = shell("/usr/bin/sips -s format icns \(q(p + "/Contents/Resources/icon.png")) --out \(q(p + "/Contents/Resources/icon.icns")) >/dev/null 2>&1; rm -f \(q(p + "/Contents/Resources/icon.png"))")
                 icon = "<key>CFBundleIconFile</key><string>icon</string>"
             }
             let id = "local.cosmopolitan.launcher." + safe.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map(String.init).joined()
-            let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleName</key><string>\(safe)</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIdentifier</key><string>\(id)</string><key>CFBundlePackageType</key><string>APPL</string><key>LSApplicationCategoryType</key><string>public.app-category.games</string><key>\(launcherMark)</key><true/>\(icon)</dict></plist>"
+            let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleName</key><string>\(safe.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;"))</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIdentifier</key><string>\(id)</string><key>CFBundlePackageType</key><string>APPL</string><key>LSApplicationCategoryType</key><string>public.app-category.games</string><key>\(launcherMark)</key><true/>\(icon)</dict></plist>"
             try? plist.write(toFile: p + "/Contents/Info.plist", atomically: true, encoding: .utf8)
             _ = shell("/usr/bin/codesign --force --sign - \(q(p)) >/dev/null 2>&1")
             made.append(safe)

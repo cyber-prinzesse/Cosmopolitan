@@ -26,7 +26,7 @@ extension Model {
             out.append(("DXMT shader cache: \(e)", "\(dxmtRoot)/\(e)"))
         }
         for d in (try? fm.contentsOfDirectory(atPath: "\(h)/Library/Caches")) ?? [] where d.lowercased().contains("d3dmetal") || d.lowercased().contains("dxmt") || d.lowercased().contains("metal") && d.lowercased().contains("shader") { out.append((d, "\(h)/Library/Caches/\(d)")) }
-        let ue = shell("find '\(b)/drive_c/users' -maxdepth 6 -name '*.upipelinecache' 2>/dev/null | head -20").split(separator: "\n").map(String.init)
+        let ue = shell("find \(shq("\(b)/drive_c/users")) -maxdepth 6 -name '*.upipelinecache' 2>/dev/null | head -20").split(separator: "\n").map(String.init)
         for f in ue { out.append(("Unreal PSO cache: \((f as NSString).lastPathComponent)", f)) }
         return out.filter { fm.fileExists(atPath: $0.1) }
     }
@@ -82,7 +82,7 @@ extension Model {
 
     // A process (the game, under Wine) has this DXMT cache open; writing to it or deleting it then is unsafe.
     nonisolated static func shaderCacheInUse(_ path: String) -> Bool {
-        !shell("lsof -t +D '\(path.replacingOccurrences(of: "'", with: "'\\''"))' 2>/dev/null | head -1").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !shell("lsof -t +D \(shq(path)) 2>/dev/null | head -1").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // Before launch: restore a game's DXMT cache from the bottle when macOS has purged it. After exit: save it into the bottle (off the main thread).
@@ -154,19 +154,19 @@ extension Model {
 
     func shaderCacheReport() {
         var out = "── Shader caches (\(selected)) ──\n"
-        for (n, p) in shaderCacheDirs() { out += "  \(sh("du -sh '\(p)' 2>/dev/null | cut -f1"))\t\(n)\n" }
+        for (n, p) in shaderCacheDirs() { out += "  \(sh("du -sh \(shq("\(p)")) 2>/dev/null | cut -f1"))\t\(n)\n" }
         if shaderCacheDirs().isEmpty { out += "  none found yet (they appear after games have run)\n" }
         let saved = bottleShaderDir()
-        if FileManager.default.fileExists(atPath: saved) { out += "  \(sh("du -sh '\(saved)' 2>/dev/null | cut -f1"))\tDXMT shaders saved in the bottle (kept by Clear all)\n" }
+        if FileManager.default.fileExists(atPath: saved) { out += "  \(sh("du -sh \(shq("\(saved)")) 2>/dev/null | cut -f1"))\tDXMT shaders saved in the bottle (kept by Clear all)\n" }
         out += "Clearing forces games to recompile shaders on their next start (slower first minutes), useful after a driver update that produces glitches.\n──\n"
         logToFile(out); log += out
     }
     func clearShaderCaches() {
         guard sh("ps -axo command= | grep -c 'steamapps.common'").hasPrefix("0"), !Model.shaderCacheInUse(Model.dxmtCacheRoot()) else { log += "Shader caches: quit running games first.\n"; return }
-        for (n, p) in shaderCacheDirs() { _ = sh("rm -rf '\(p)'"); log += "Cleared \(n)\n" }
+        for (n, p) in shaderCacheDirs() { _ = sh("rm -rf \(shq("\(p)"))"); log += "Cleared \(n)\n" }
     }
     // The bottle's saved DXMT shaders: Clear all keeps them (they restore at the next start); this drops them too, e.g. after a bad import.
     func clearSavedShaders() {
-        _ = sh("rm -rf '\(bottleShaderDir())'"); log += "Deleted the DXMT shaders saved in \(selected).\n"
+        _ = sh("rm -rf \(shq("\(bottleShaderDir())"))"); log += "Deleted the DXMT shaders saved in \(selected).\n"
     }
 }

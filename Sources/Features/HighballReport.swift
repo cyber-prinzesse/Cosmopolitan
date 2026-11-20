@@ -8,7 +8,7 @@ extension Model {
         let body = """
         **Game:** \(appName(exe))\(g.map { " — Steam app id \($0.id)" } ?? "")
         **Mac:** \(chip), \(ram) GB, macOS \(ProcessInfo.processInfo.operatingSystemVersionString)
-        **Launcher:** Cosmopolitan \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?"), engine \(sh("'\(wineBin)' --version 2>/dev/null"))
+        **Launcher:** Cosmopolitan \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?"), engine \(sh("\(shq("\(wineBin)")) --version 2>/dev/null"))
         **Backend:** \(driverList(launchEnvRaw(), bottle: selected).joined(separator: " + "))\(readiness[exe]?.drivers.map { " (this game: \($0.joined(separator: " + ")))" } ?? "")
         \(fallbackNote(exe).map { "**Driver fallback:** \($0)\n" } ?? "")**Result:** <works / works with issues / does not start — please fill in>
         **Notes:** <fps, settings, crashes>

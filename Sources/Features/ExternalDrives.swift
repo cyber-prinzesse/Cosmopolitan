@@ -14,7 +14,16 @@ extension Model {
         guard sh("ps -axo command= | grep -c '\\.exe'").hasPrefix("0") else { log += "Move: quit Steam and games in this bottle first.\n"; return }
         busy = true; log += "Moving \(name) to \(volume)… (copy, verify, then replace the original with a link)\n"
         Task.detached {
-            let r = shell("mkdir -p '\(dstDir)' && ditto '\(src)' '\(dst)' 2>&1 | tail -1 && [ -d '\(dst)/drive_c' ] && rm -rf '\(src)' && ln -s '\(dst)' '\(src)' && echo moved")
+            // SEC-006: delete the original only after ditto itself succeeded and the copy has drive_c (the old `ditto | tail` checked
+            // tail's status). Arguments, not shell text: bottle names are typed by the user.
+            let fm = FileManager.default
+            try? fm.createDirectory(atPath: dstDir, withIntermediateDirectories: true)
+            let d = runTool("/usr/bin/ditto", [src, dst])
+            let r: String
+            if d.status != 0 || !fm.fileExists(atPath: dst + "/drive_c") { try? fm.removeItem(atPath: dst); r = "copy failed (\(d.status)), the bottle stays where it was: \(d.out.split(separator: "\n").last ?? "")" }
+            else if (try? fm.removeItem(atPath: src)) == nil { r = "copied, but the original could not be removed; nothing was linked" }
+            else if (try? fm.createSymbolicLink(atPath: src, withDestinationPath: dst)) == nil { r = "moved, but the link back failed: the bottle is at \(dst)" }
+            else { r = "moved" }
             await MainActor.run { self.busy = false; self.log += r.hasSuffix("moved") ? "Moved \(name) to \(dst); the bottle hides while the drive is unplugged.\n" : "Move failed: \(r)\n"; self.refresh() }
         }
     }

@@ -65,11 +65,11 @@ extension Model {
         if machoLoads(orig, ref) { return "" }
         let t = mac + ".nodock-tmp"; try? fm.removeItem(atPath: t)
         guard fm.createFile(atPath: t, contents: orig) else { return "✗ One Dock icon for Steam: engine folder not writable\n" }
-        _ = shell("codesign --remove-signature '\(t)' 2>/dev/null")
+        _ = shell("codesign --remove-signature \(shq("\(t)")) 2>/dev/null")
         guard let unsigned = fm.contents(atPath: t), let patched = machoAddingDylib(unsigned, ref), fm.createFile(atPath: t, contents: patched) else {
             try? fm.removeItem(atPath: t); return "✗ One Dock icon for Steam: this engine's Mac driver has no room for the add-on; left as is\n"
         }
-        _ = shell("chmod 755 '\(t)'; codesign --force -s - '\(t)' 2>/dev/null")
+        _ = shell("chmod 755 \(shq("\(t)")); codesign --force -s - \(shq("\(t)")) 2>/dev/null")
         guard let signed = fm.contents(atPath: t), machoLoads(signed, ref) else { try? fm.removeItem(atPath: t); return "✗ One Dock icon for Steam: patching the Mac driver failed; left as is\n" }
         if !fm.fileExists(atPath: mac + ".orig-before-nodock") { try? fm.copyItem(atPath: mac, toPath: mac + ".orig-before-nodock") }
         guard rename(t, mac) == 0 else { try? fm.removeItem(atPath: t); return "✗ One Dock icon for Steam: couldn't replace the Mac driver\n" }
@@ -149,7 +149,7 @@ extension Model {
         let file = tmp + "/.cosmo-dock-names.reg"
         try? FileManager.default.createDirectory(atPath: tmp, withIntermediateDirectories: true)
         guard (try? (Data([0xFF, 0xFE]) + (reg.data(using: .utf16LittleEndian) ?? Data())).write(to: URL(fileURLWithPath: file))) != nil else { return }
-        _ = shell("cd '\(tmp)' && \(plainWine(prefix)) reg import 'C:\\windows\\temp\\.cosmo-dock-names.reg' >/dev/null 2>&1")
+        _ = shell("cd \(shq("\(tmp)")) && \(plainWine(prefix)) reg import 'C:\\windows\\temp\\.cosmo-dock-names.reg' >/dev/null 2>&1")
         try? FileManager.default.removeItem(atPath: file)
         saveLedger(bottle, l.filter { $0.owner != owner } + want.sorted { $0.key < $1.key }.map { RegEntry(key: key($0.key), name: "AppName", value: $0.value, exe: $0.key, owner: owner) })
     }
